@@ -1,18 +1,42 @@
 import numpy             as np
 import matplotlib.pyplot as plt
+import matplotlib.ticker as mticker
 import cartopy.crs       as ccrs
 
 class mapplot:
 
-    def __init__(self, fig, ax, posit, lon, lat, lev=None, lonlim=None, latlim=None, levlim=None, center=None, **kwargs):
+    def __init__(self, fig, ax, posit, lon, lat, **kwargs):
+        defaults = {'lev': 0.,
+                    'lonlim': None,
+                    'latlim': None,
+                    'levlim': None,
+                    'center': None.
+                    'projection': 'PlateCarree',
+                   }
+        unknown = set(kwargs) - defaults.keys()
+        if unknown:
+            raise TypeError(f"Unexpected Keyword(s): {', '.join(sorted(unknown))}. Allowed keywords: fig, ax, posit, lon, lat, {', '.join(sorted(defaults.keys()))}")
+        defaults = {**defaults, **kwargs}
 
         self.lon = np.array(lon)
         self.lat = np.array(lat)
         self.lev = np.array(lev)
 
-        self.set_lon(lonlim)
-        self.set_lat(latlim)
-        self.set_lev(levlim)
+        self.mglon, self.mglat = np.meshgrid(self.lon, self.lat)
+
+        self.projection = defaults['projection']
+        self.set_lon(defaults['lonlim'])
+        self.set_lat(defaults['latlim'])
+        self.set_lev(defaults['levlim'])
+        self.center = defaults['center']
+
+        self.method = 'contour'
+        self.cmap   = 'bwr'
+        self.colors = None
+
+        self.__proj    = None
+        self.__crs     = None
+        self.gridlines = None
 
         center = self.__toList(center)
         if (len(center) == 1):
@@ -21,7 +45,7 @@ class mapplot:
 
         self.__figureProjection()
         
-        self.__kwargs = kwargs
+        self.__kwargs = defaults
 
         isValid = True
         if (isinstance(posit, int):
@@ -44,8 +68,13 @@ class mapplot:
         if (not isValid):
             raise ValueError(f'Invalid posit : {posit}')
 
-        self.fig = fig
-        self.ax  = fig.add_subplot(rows, lines, idx, projection=self.__proj)
+        self.fig   = fig
+        self.ax    = fig.add_subplot(rows, lines, idx, projection=self.__proj)
+        self.cont  = None
+        self.shade = None
+        self.cbar  = None
+
+        self.ax.coastline()
 
 
     def set_lon(self, lonlim=None):
@@ -113,6 +142,91 @@ class mapplot:
         self.center = [lon, lat]
 
 
+    def set_label(self, fontsize=10, grid=False, linewidth=1, linsestyle='-', color='black', alpha=1):
+        self.gridlines = self.ax.gridlines(crs=self.__crs, linewidth=linewidth, linestyle=linestyle, color=color, alpha=alpha)
+        self.gridlines.xlabel_style = {'size': fontsize, 'color': 'black'}
+        self.gridlines.ylabel_style = {'size': fontsize, 'color': 'black'}
+
+        self.gridlines.xlines = grid
+        self.gridlines.ylines = grid
+
+
+    def label_loc(self, which, location):
+        which = which.lower()
+        if (which == 'x' or which == 'lon'):
+            self.gridlines.xlocator = mticker.FixedLocator(location)
+        elif (which == 'y' or which == 'lat'):
+            self.gridlines.ylocator = mticker.FixedLocator(location)
+
+
+    def gxout(self, method=None, cmap=None, colors=None):
+        method_allowed = ['contour', 'shaded']
+        method = method.lower()
+        if (method is not None):
+            if (method in method_allowed):
+                self.method = method.lower()
+            else:
+                raise ValueError('Invalid method was given to gxout(). Options : ' + ', '.join(method_allowed))
+
+        if (cmap is not None):
+            self.cmap   = cmap
+            self.colors = None
+
+        if (colors is not None):
+            self.cmap   = None
+            self.colors = colors
+
+
+    def display(self, data, levels=None, extend='both', linestyles='solid', negative_linestyle='solid', **kwargs):
+        args = dict(kwargs)
+        args['transform'] = self.__crs
+
+        if (levels is not None):
+            args['levels'] = levels
+
+        if (self.cmap is not None):
+            args['cmap'] = self.cmap
+        if (kwargs.get('cmap', None) is not None):
+            args['cmap'] = kwargs['cmap']
+
+        if (self.colors is not None):
+            args['colors'] = self.colors
+        if (kwargs.get('colors', None) is not None):
+            args['colors'] = kwargs['colors']
+
+
+        if (self.method == 'contour'):
+            args['linestyles']         = linestyles
+            args['negative_linestyle'] = negative_linestyle
+        elif (self.method == 'shaded'):
+            args['extend']    = extend
+
+
+        # Plot
+        if (self.method == 'contour'):
+            self.__plot_contour(data, **args)
+        elif (self.method == 'shaded'):
+            self.__plot_shaded(data, **args)
+
+
+    def __plot_contour(self, data, **kwargs):
+        
+        self.cont = self.ax.contour(self.mglon,
+                                    self.mglat,
+                                    data      ,
+                                    **kwargs  )
+
+
+    def __plot_shaded(self, data, **kwargs):
+        
+        self.shade = self.ax.shaded(self.mglon,
+                                    self.mglat,
+                                    data      ,
+                                    **kwargs  )
+
+    def set_cbar(self, 
+
+
     def __figureProjection(self):
         clon = center[0]
         clat = center[1]
@@ -151,18 +265,16 @@ class mapplot:
                     'transversemercator': ccrs.TransverseMercator(),
                    }
         
-        self.__proj = proj_list[projection]
-        self.__crs  =  crs_list[projection]
-
-
-    def lonlabel(lmin, lmax, lint):
-        loc  = np.arange(lmin, lmax+lint, lint)
-        self.lonlab = loc
-
-
-    def latlabel(lmin, lmax, lint):
-        loc  = np.arange(lmin, lmax+lint, lint)
-        self.latlab = loc
+        try:
+            self.__proj = proj_list[projection]
+            self.__crs  =  crs_list[projection]
+        except:
+            maps = []
+            for proj in proj_list:
+                maps = maps + ['"' + proj + '"']
+            err = f'{self.projection} is not in the projection list : ' + ', '.join(maps) + '. '
+            err = err + 'See the following website for the allowed projection : https://cartopy.readthedocs.io/stable/reference/projections.html'
+            raise ValueError(err)
 
 
     def __toList(a):
