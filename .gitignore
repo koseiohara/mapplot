@@ -1,0 +1,7 @@
+*.dat
+*.grd
+*.bin
+*.o
+*.mod
+__pycache__
+
