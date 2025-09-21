@@ -10,7 +10,7 @@ class mapplot:
                     'lonlim': None,
                     'latlim': None,
                     'levlim': None,
-                    'center': None.
+                    'center': None,
                     'projection': 'PlateCarree',
                    }
         unknown = set(kwargs) - defaults.keys()
@@ -37,7 +37,6 @@ class mapplot:
 
         self.__proj    = None
         self.__crs     = None
-        self.gridlines = None
 
         center = self.__toList(center)
         if (len(center) == 1):
@@ -49,7 +48,7 @@ class mapplot:
         self.__kwargs = args
 
         isValid = True
-        if (isinstance(posit, int):
+        if (isinstance(posit, int)):
             if (posit >= 111 and posit <= 999):
                 rows  = int(posit/100)
                 lines = int(posit/10) - rows*10
@@ -76,7 +75,7 @@ class mapplot:
         self.ccbar = None       ## Color Bar for contour
         self.scbar = None       ## Color Bar for shade
 
-        self.ax.coastline()
+        self.ax.coastlines()
 
 
     def set_lon(self, lonlim=None):
@@ -144,31 +143,30 @@ class mapplot:
         self.center = [lon, lat]
 
 
-    def set_label(self, fontsize=10, grid=False, linewidth=1, linsestyle='-', color='black', alpha=1):
-        self.gridlines = self.ax.gridlines(crs=self.__crs, linewidth=linewidth, linestyle=linestyle, color=color, alpha=alpha)
-        self.gridlines.xlabel_style = {'size': fontsize, 'color': 'black'}
-        self.gridlines.ylabel_style = {'size': fontsize, 'color': 'black'}
+    def set_label(self, fontsize=10, grid=False, linewidth=1, linestyle='-', color='black', alpha=1):
+        self.ax.gridlines(crs=self.__crs, linewidth=linewidth, linestyle=linestyle, color=color, alpha=alpha)
+        self.ax.gridlines.xlabel_style = {'size': fontsize, 'color': 'black'}
+        self.ax.gridlines.ylabel_style = {'size': fontsize, 'color': 'black'}
 
-        self.gridlines.xlines = grid
-        self.gridlines.ylines = grid
+        self.ax.gridlines.xlines = grid
+        self.ax.gridlines.ylines = grid
 
 
     def label_loc(self, which, location):
         which = which.lower()
         if (which == 'x' or which == 'lon'):
-            self.gridlines.xlocator = mticker.FixedLocator(location)
+            self.ax.gridlines.xlocator = mticker.FixedLocator(location)
         elif (which == 'y' or which == 'lat'):
-            self.gridlines.ylocator = mticker.FixedLocator(location)
+            self.ax.gridlines.ylocator = mticker.FixedLocator(location)
 
 
-    def gxout(self, method=None, cmap=None, colors=None):
+    def gxout(self, method, cmap=None, colors=None):
         method_allowed = ['contour', 'shaded']
         method = method.lower()
-        if (method is not None):
-            if (method in method_allowed):
-                self.method = method.lower()
-            else:
-                raise ValueError('Invalid method was given to gxout(). Options : ' + ', '.join(method_allowed))
+        if (method in method_allowed):
+            self.method = method.lower()
+        else:
+            raise ValueError('Invalid method was given to gxout(). Options : ' + ', '.join(method_allowed))
 
         if (cmap is not None):
             self.cmap   = cmap
@@ -270,17 +268,19 @@ class mapplot:
 
         which = which.lower()
         if (which == 'shaded'):
-            cbar = self.fig.colorbar(self.shade, self.ax, **kwargs)
+            cbar = self.fig.colorbar(self.shade, ax=self.ax, **args)
         elif (which == 'contour'):
-            cbar = self.fig.colorbar(self.cont, self.ax, **kwargs)
-
-
-    def 
+            cbar = self.fig.colorbar(self.cont , ax=self.ax, **args)
+        
+        if (which == 'shaded'):
+            self.scbar = cbar
+        elif (which == 'contour'):
+            self.ccbar = cbar
 
 
     def __figureProjection(self):
-        clon = center[0]
-        clat = center[1]
+        clon = self.center[0]
+        clat = self.center[1]
         projection = self.projection.lower()
         proj_list = {'platecarree': ccrs.PlateCarree(central_longitude=clon),
                      'albersequalarea': ccrs.AlbersEqualArea(central_longitude=clon, central_latitude=clat),
@@ -328,8 +328,8 @@ class mapplot:
             raise ValueError(err)
 
 
-    def __toList(a):
-        if (isinstance(a, np.ndarray):
+    def __toList(self, a):
+        if (isinstance(a, np.ndarray)):
             return a.tolist()
         elif (isinstance(a, (list, tuple))):
             return list(a)
