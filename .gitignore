@@ -4,4 +4,5 @@
 *.o
 *.mod
 __pycache__
+test.py
 

@@ -66,7 +66,7 @@ class mapplot:
         else:
             isValid = False
 
-        if (posit < 1 or posit > rows*lines):
+        if (idx < 1 or idx > rows*lines):
             isValid = False
 
         if (not isValid):
@@ -232,10 +232,12 @@ class mapplot:
             data_pass = data[:,:]
         elif (data.ndim == 3):
             data_pass = data[self.levidx,:,:]
+            print('DEBUG : ', self.levidx)
         
         # Limit the area to be plotted
         self.ax.set_extent(self.lonlim + self.latlim, crs=self.__crs)
 
+        print('DEBUG : ', data_pass[0,:])
         # Plot
         if (self.method == 'contour'):
             self.__plot_contour(data_pass, **args)
@@ -244,7 +246,6 @@ class mapplot:
         
 
     def __plot_contour(self, data, **kwargs):
-        
         self.cont = self.ax.contour(self.mglon,
                                     self.mglat,
                                     data      ,
@@ -262,9 +263,11 @@ class mapplot:
     # Show colorbar
     # All arguments from matplotlib colorbar are available
     def set_cbar(self, which='shaded', **kwargs):
-        defaults = {'location': 'bottom', 'shrink': 0.9, 'aspect': 40}
+        defaults = {'location': 'bottom', 'shrink': 0.9, 'aspect': 40, 'pad': 0.08}
         args     = defaults.copy()
         args.update(kwargs)
+        if (('pad' not in kwargs) and (args['location']=='right' or args['location']=='left')):
+            args['pad'] = 0.03
 
         which = which.lower()
         if (which == 'shaded'):
@@ -342,6 +345,9 @@ class mapplot:
         
         self.gridlines.xlines = self.__gl_config['grid']    # Default : No grid lines
         self.gridlines.ylines = self.__gl_config['grid']    # Default : No grid lines
+
+        self.gridlines.top_labels   = False
+        self.gridlines.right_labels = False
 
 
     # Convert to List
