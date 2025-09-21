@@ -26,9 +26,9 @@ class mapplot:
         self.mglon, self.mglat = np.meshgrid(self.lon, self.lat)
 
         self.projection = args['projection']
-        self.set_lon(args['lonlim'])
-        self.set_lat(args['latlim'])
-        self.set_lev(args['levlim'])
+        self.set_lon(args['lonlim'])   ## Set self.lonlim
+        self.set_lat(args['latlim'])   ## Set self.latlim
+        self.set_lev(args['levlim'])   ## Set self.levlim and self.levidx
         self.center = args['center']
 
         self.method = 'contour'
@@ -38,7 +38,7 @@ class mapplot:
         self.__proj    = None
         self.__crs     = None
 
-        center = self.__toList(center)
+        center = self.__toList(args['center'])
         if (len(center) == 1):
             center = center + [None]
         self.set_center(center[0], center[1])
@@ -76,6 +76,9 @@ class mapplot:
         self.scbar = None       ## Color Bar for shade
 
         self.ax.coastlines()
+
+        self.gridlines = None
+        self.__gridlines_init()
 
 
     def set_lon(self, lonlim=None):
@@ -131,6 +134,7 @@ class mapplot:
             levlim = self.lev[0]
         
         self.levlim = levlim
+        self.levidx = np.argmin(np.abs(self.lev - levlim))
 
 
     def set_center(self, lon=None, lat=None):
@@ -144,20 +148,27 @@ class mapplot:
 
 
     def set_label(self, fontsize=10, grid=False, linewidth=1, linestyle='-', color='black', alpha=1):
-        self.ax.gridlines(crs=self.__crs, linewidth=linewidth, linestyle=linestyle, color=color, alpha=alpha)
-        self.ax.gridlines.xlabel_style = {'size': fontsize, 'color': 'black'}
-        self.ax.gridlines.ylabel_style = {'size': fontsize, 'color': 'black'}
+        self.gridlines.xlabel_style = {'size': fontsize, 'color': 'black'}
+        self.gridlines.ylabel_style = {'size': fontsize, 'color': 'black'}
 
-        self.ax.gridlines.xlines = grid
-        self.ax.gridlines.ylines = grid
+        self.gridlines.xlines = grid
+        self.gridlines.ylines = grid
+
+        self.gridlines.linewidth = linewidth
+        self.gridlines.linestyle = linestyle
+
+        self.gridlines.color = color
+        self.gridlines.alpha = alpha
 
 
     def label_loc(self, which, location):
         which = which.lower()
         if (which == 'x' or which == 'lon'):
-            self.ax.gridlines.xlocator = mticker.FixedLocator(location)
+            self.gridlines.xlocator = mticker.FixedLocator(location)
         elif (which == 'y' or which == 'lat'):
-            self.ax.gridlines.ylocator = mticker.FixedLocator(location)
+            self.gridlines.ylocator = mticker.FixedLocator(location)
+        else:
+            raise ValueError(f'Invalid parameter was obtained to label_loc() : which={which}. which must be "x"/"lon" or "y"/"lat".')
 
 
     def gxout(self, method, cmap=None, colors=None):
@@ -234,7 +245,7 @@ class mapplot:
         elif (data.ndim == 2):
             data_pass = data[:,:]
         elif (data.ndim == 3):
-            data_pass = data[self.lev==self.levlim:,:]
+            data_pass = data[self.levidx,:,:]
         
         self.ax.set_extent(self.lonlim + self.latlim, crs=self.__crs)
 
@@ -326,6 +337,31 @@ class mapplot:
             err = f'{self.projection} is not in the projection list : ' + ', '.join(maps) + '. '
             err = err + 'See the following website for the allowed projection : https://cartopy.readthedocs.io/stable/reference/projections.html'
             raise ValueError(err)
+
+
+    def __gridlines_init(self):
+        self.__gl_config = {'fontsize' : 10     ,
+                            'grid'     : False  ,
+                            'linewidth': 1      ,
+                            'linestyle': '-'    ,
+                            'color'    : 'black',
+                            'alpha'    : 1.     ,
+                           }
+        self.gridlines = self.ax.gridlines(crs        =self.__crs                   ,
+                                           linewidth  =self.__gl_config['linewidth'],
+                                           linestyle  =self.__gl_config['linestyle'],
+                                           color      =self.__gl_config['color']    ,
+                                           alpha      =self.__gl_config['alpha']    ,
+                                           draw_labels=True                         )
+        self.gridlines.xlabel_style = {'size' : self.__gl_config['fontsize'],
+                                       'color': self.__gl_config['color']   ,
+                                      }
+        self.gridlines.ylabel_style = {'size' : self.__gl_config['fontsize'],
+                                       'color': self.__gl_config['color']   ,
+                                      }
+        
+        self.gridlines.xlines = self.__gl_config['grid']
+        self.gridlines.ylines = self.__gl_config['grid']
 
 
     def __toList(self, a):
