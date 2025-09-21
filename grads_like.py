@@ -5,7 +5,7 @@ import cartopy.crs       as ccrs
 
 class mapplot:
 
-    def __init__(self, fig, ax, posit, lon, lat, **kwargs):
+    def __init__(self, fig, posit, lon, lat, **kwargs):
         defaults = {'lev': 0.,
                     'lonlim': None,
                     'latlim': None,
@@ -15,20 +15,21 @@ class mapplot:
                    }
         unknown = set(kwargs) - defaults.keys()
         if unknown:
-            raise TypeError(f"Unexpected Keyword(s): {', '.join(sorted(unknown))}. Allowed keywords: fig, ax, posit, lon, lat, {', '.join(sorted(defaults.keys()))}")
-        defaults = {**defaults, **kwargs}
+            raise TypeError(f"Unexpected Keyword(s): {', '.join(sorted(unknown))}. Allowed keywords: fig, posit, lon, lat, {', '.join(sorted(defaults.keys()))}")
+        args = defaults.copy()
+        args.update(kwargs)
 
         self.lon = np.array(lon)
         self.lat = np.array(lat)
-        self.lev = np.array(lev)
+        self.lev = np.array(args['lev'])
 
         self.mglon, self.mglat = np.meshgrid(self.lon, self.lat)
 
-        self.projection = defaults['projection']
-        self.set_lon(defaults['lonlim'])
-        self.set_lat(defaults['latlim'])
-        self.set_lev(defaults['levlim'])
-        self.center = defaults['center']
+        self.projection = args['projection']
+        self.set_lon(args['lonlim'])
+        self.set_lat(args['latlim'])
+        self.set_lev(args['levlim'])
+        self.center = args['center']
 
         self.method = 'contour'
         self.cmap   = 'bwr'
@@ -45,7 +46,7 @@ class mapplot:
 
         self.__figureProjection()
         
-        self.__kwargs = defaults
+        self.__kwargs = args
 
         isValid = True
         if (isinstance(posit, int):
@@ -72,7 +73,8 @@ class mapplot:
         self.ax    = fig.add_subplot(rows, lines, idx, projection=self.__proj)
         self.cont  = None
         self.shade = None
-        self.cbar  = None
+        self.ccbar = None       ## Color Bar for contour
+        self.scbar = None       ## Color Bar for shade
 
         self.ax.coastline()
 
@@ -177,37 +179,73 @@ class mapplot:
             self.colors = colors
 
 
-    def display(self, data, levels=None, extend='both', linestyles='solid', negative_linestyle='solid', **kwargs):
-        args = dict(kwargs)
-        args['transform'] = self.__crs
+    #def display(self, data, levels=None, extend='both', linestyles='solid', negative_linestyle='solid', **kwargs):
+    #    args = dict(kwargs)
+    #    args['transform'] = self.__crs
 
-        if (levels is not None):
-            args['levels'] = levels
+    #    if (levels is not None):
+    #        args['levels'] = levels
 
+    #    if (self.cmap is not None):
+    #        args['cmap'] = self.cmap
+    #    if (kwargs.get('cmap', None) is not None):
+    #        args['cmap'] = kwargs['cmap']
+
+    #    if (self.colors is not None):
+    #        args['colors'] = self.colors
+    #    if (kwargs.get('colors', None) is not None):
+    #        args['colors'] = kwargs['colors']
+
+
+    #    if (self.method == 'contour'):
+    #        args['linestyles']         = linestyles
+    #        args['negative_linestyle'] = negative_linestyle
+    #    elif (self.method == 'shaded'):
+    #        args['extend']    = extend
+
+
+    #    # Plot
+    #    if (self.method == 'contour'):
+    #        self.__plot_contour(data, **args)
+    #    elif (self.method == 'shaded'):
+    #        self.__plot_shaded(data, **args)
+
+
+    def display(self, data, **kwargs):
+        if (self.method == 'contour'):
+            defaults = {'linestyles': 'solid', 'negative_linestyle': 'solid'}
+        elif (self.method == 'shaded'):
+            defaults = {'extend': 'both'}
+        else:
+            print('DEBUG : Unexpected method')
+
+        args = defaults.copy()
         if (self.cmap is not None):
             args['cmap'] = self.cmap
-        if (kwargs.get('cmap', None) is not None):
-            args['cmap'] = kwargs['cmap']
 
         if (self.colors is not None):
             args['colors'] = self.colors
-        if (kwargs.get('colors', None) is not None):
-            args['colors'] = kwargs['colors']
+
+        args.update(kwargs)
+
+        args['transform'] = self.__crs
 
 
-        if (self.method == 'contour'):
-            args['linestyles']         = linestyles
-            args['negative_linestyle'] = negative_linestyle
-        elif (self.method == 'shaded'):
-            args['extend']    = extend
-
+        if (data.ndim == 1 or data.ndim > 3):
+            raise TypeError('Invalid data shape was obtained to display()')
+        elif (data.ndim == 2):
+            data_pass = data[:,:]
+        elif (data.ndim == 3):
+            data_pass = data[self.lev==self.levlim:,:]
+        
+        self.ax.set_extent(self.lonlim + self.latlim, crs=self.__crs)
 
         # Plot
         if (self.method == 'contour'):
-            self.__plot_contour(data, **args)
+            self.__plot_contour(data_pass, **args)
         elif (self.method == 'shaded'):
-            self.__plot_shaded(data, **args)
-
+            self.__plot_shaded(data_pass, **args)
+        
 
     def __plot_contour(self, data, **kwargs):
         
@@ -219,12 +257,25 @@ class mapplot:
 
     def __plot_shaded(self, data, **kwargs):
         
-        self.shade = self.ax.shaded(self.mglon,
-                                    self.mglat,
-                                    data      ,
-                                    **kwargs  )
+        self.shade = self.ax.contourf(self.mglon,
+                                      self.mglat,
+                                      data      ,
+                                      **kwargs  )
 
-    def set_cbar(self, 
+
+    def set_cbar(self, which='shaded', **kwargs):
+        defaults = {'location': 'bottom', 'shrink': 0.9, 'aspect': 40}
+        args = defaults.copy()
+        args.update(kwargs)
+
+        which = which.lower()
+        if (which == 'shaded'):
+            cbar = self.fig.colorbar(self.shade, self.ax, **kwargs)
+        elif (which == 'contour'):
+            cbar = self.fig.colorbar(self.cont, self.ax, **kwargs)
+
+
+    def 
 
 
     def __figureProjection(self):
