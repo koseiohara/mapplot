@@ -1,8 +1,11 @@
 *.dat
 *.grd
 *.bin
+*.ctl
 *.o
 *.mod
 __pycache__
 test.py
+*.png
+*.pdf
 

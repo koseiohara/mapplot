@@ -12,6 +12,7 @@ class mapplot:
                     'levlim': None,                 # Vertical level to be plotted : assuming scalar
                     'center': None,                 # Graph center : assuming list [lon,lat] or scalar lon
                     'projection': 'PlateCarree',    # Graph Projection
+                    'resolution': 'medium',         # Map Resolution : high/h/10m, medium/m/50m, or low/l/110m
                    }
         unknown = set(kwargs) - defaults.keys()
         if unknown:
@@ -79,7 +80,19 @@ class mapplot:
         self.ccbar = None       ## Color Bar for contour
         self.scbar = None       ## Color Bar for shade
 
-        self.ax.coastlines()
+        resolution = args['resolution'].lower()
+        if (resolution == 'high' or resolution == 'h' or resolution == '10m'):
+            self.resolution = 'high'
+            cl_resolution   = '10m'
+        elif (resolution == 'medium' or resolution == 'm' or resolution == '50m'):
+            self.resolution = 'medium'
+            cl_resolution   = '50m'
+        elif (resolution == 'low' or resolution == 'l' or resolution == '110m'):
+            self.resolution = 'low'
+            cl_resolution   = '110m'
+        else:
+            raise ValueError(f'Invalid map resolution : {resolution}')
+        self.ax.coastlines(resolution=cl_resolution, linewidth=0.5)
 
         self.gridlines = None
         self.__gridlines_init()
@@ -205,7 +218,7 @@ class mapplot:
 
     # Plot contour or shade : method follows self.method
     # All arguments from matplotlib contour/contourf are available
-    # But 'transform' argument cannot be changed
+    # 'transform' argument cannot be changed
     def display(self, data, **kwargs):
         if (self.method == 'contour'):
             defaults = {'linestyles': 'solid'}
@@ -262,12 +275,20 @@ class mapplot:
 
     # Show colorbar
     # All arguments from matplotlib colorbar are available
-    def set_cbar(self, which='shaded', **kwargs):
+    def set_cbar(self, which=None, **kwargs):
         defaults = {'location': 'bottom', 'shrink': 0.9, 'aspect': 40, 'pad': 0.08}
         args     = defaults.copy()
         args.update(kwargs)
         if (('pad' not in kwargs) and (args['location']=='right' or args['location']=='left')):
             args['pad'] = 0.03
+
+        if (which is None):
+            if (self.shade is not None):
+                which = 'shaded'
+            elif (self.shade is not None):
+                which = 'contour'
+            else:
+                raise RuntimeError('No shade and contour to be refered by colorbar')
 
         which = which.lower()
         if (which == 'shaded'):
