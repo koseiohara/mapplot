@@ -224,8 +224,8 @@ class mapplot:
             defaults = {'linestyles': 'solid'}
         elif (self.method == 'shaded'):
             defaults = {'extend': 'both'}
-        else:
-            print('DEBUG : Unexpected method')
+        #else:
+            #print('DEBUG : Unexpected method')
 
         args = defaults.copy()
         if (self.cmap is not None):
@@ -245,12 +245,12 @@ class mapplot:
             data_pass = data[:,:]
         elif (data.ndim == 3):
             data_pass = data[self.levidx,:,:]
-            print('DEBUG : ', self.levidx)
+            #print('DEBUG : ', self.levidx)
         
         # Limit the area to be plotted
         self.ax.set_extent(self.lonlim + self.latlim, crs=self.__crs)
 
-        print('DEBUG : ', data_pass[0,:])
+        #print('DEBUG : ', data_pass[0,:])
         # Plot
         if (self.method == 'contour'):
             self.__plot_contour(data_pass, **args)
@@ -285,7 +285,7 @@ class mapplot:
         if (which is None):
             if (self.shade is not None):
                 which = 'shaded'
-            elif (self.shade is not None):
+            elif (self.cont is not None):
                 which = 'contour'
             else:
                 raise RuntimeError('No shade and contour to be refered by colorbar')
@@ -298,7 +298,7 @@ class mapplot:
             cbar = self.fig.colorbar(self.shade, ax=self.ax, **args)
         elif (which == 'contour'):
             # If contour, show a colorbar of contour
-            if (self.contour is None):
+            if (self.cont is None):
                 raise RuntimeError('No contour plot to attach a colorbar to.')
             cbar = self.fig.colorbar(self.cont , ax=self.ax, **args)
         
@@ -315,7 +315,7 @@ class mapplot:
         proj_list = {'platecarree'         : lambda: ccrs.PlateCarree(central_longitude=clon),
                      'albersequalarea'     : lambda: ccrs.AlbersEqualArea(central_longitude=clon, central_latitude=clat),
                      'azimuthalequidistant': lambda: ccrs.AzimuthalEquidistant(central_longitude=clon, central_latitude=clat),
-                     'equidistantconic'    : lambda: ccrs.EquidistantConic(central_longitude=clon, central_latitude=clat),
+                     'equidistantconic'    : lambda: ccrs.EquidistantConic(),
                      'lambertconformal'    : lambda: ccrs.LambertConformal(central_longitude=clon, central_latitude=clat),
                      'lambertcylindrical'  : lambda: ccrs.LambertCylindrical(central_longitude=clon),
                      'mercator'            : lambda: ccrs.Mercator(central_longitude=clon, min_latitude=self.latlim[0], max_latitude=self.latlim[1]),
@@ -328,6 +328,7 @@ class mapplot:
                      'stereographic'       : lambda: ccrs.Stereographic(central_latitude=clat),
                      'transversemercator'  : lambda: ccrs.TransverseMercator(central_longitude=clon, central_latitude=clat),
                     }
+                     #'equidistantconic'    : lambda: ccrs.EquidistantConic(central_longitude=clon, central_latitude=clat),
 
         try:
             self.__proj = proj_list[projection]()
