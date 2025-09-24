@@ -2,6 +2,7 @@ import numpy             as np
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import cartopy.crs       as ccrs
+from cartopy.mpl.ticker import LongitudeFormatter, LatitudeFormatter
 
 class mapplot:
 
@@ -10,9 +11,9 @@ class mapplot:
                     'lonlim': None,                 # Longitude range to be plotted : assuming list
                     'latlim': None,                 # Latitude range to be plotted : assuming list
                     'levlim': None,                 # Vertical level to be plotted : assuming scalar
-                    'center': None,                 # Graph center : assuming list [lon,lat] or scalar lon
-                    'projection': 'PlateCarree',    # Graph Projection
+                    'projection': None,             # Graph Projection : assuming object
                     'resolution': 'medium',         # Map Resolution : high/h/10m, medium/m/50m, or low/l/110m
+                    'central_longitude': None       # Central longitude of map: range of longitude must not include this value
                    }
         unknown = set(kwargs) - defaults.keys()
         if unknown:
@@ -26,26 +27,21 @@ class mapplot:
 
         self.mglon, self.mglat = np.meshgrid(self.lon, self.lat)
 
-        self.projection = args['projection']
+        self.__proj     = args['projection']
+        self.__crs      = None
+        self.central_longitude = args['central_longitude']  # Default center=180
+        
         self.set_lon(args['lonlim'])    # Set self.lonlim
         self.set_lat(args['latlim'])    # Set self.latlim
         self.set_lev(args['levlim'])    # Set self.levlim and self.levidx
-        self.center = args['center']
+
+        self.__figureProjection()       # Set projection
+        self.projection = self.__proj.__class__.__name__
 
         self.method = 'contour'         # Default plot method as contour
         self.cmap   = 'bwr'             # Default color map as blue->white->red
         self.colors = None              # Default colors None
 
-        self.__proj    = None
-        self.__crs     = None
-
-        center = self.__toList(args['center'])
-        if (len(center) == 1):
-            center = center + [None]
-        self.set_center(center[0], center[1])
-
-        self.__figureProjection()       # Set projection
-        
         self.__kwargs = args            # Copy for future meintainances
 
         isValid = True
@@ -98,32 +94,46 @@ class mapplot:
         self.__gridlines_init()
 
 
+
+    def __lon_norm(self, lon):
+        l0 = np.float64(lon[0])
+        l1 = np.float64(lon[1])
+
+        if (self.central_longitude is None):
+            work_l0 = l0
+            work_l1 = l1
+            if (work_l1 < work_l0):
+                work_l1 = work_l1 + 360
+            self.central_longitude = (work_l0 + work_l1) * 0.5
+
+        norm0 = (l0 - self.central_longitude + 180.) % 360. + self.central_longitude - 180.
+        norm1 = (l1 - self.central_longitude + 180.) % 360. + self.central_longitude - 180.
+        print(f'DEBUG : norm0={norm0}, norm1={norm1}')
+
+        return norm0, norm1
+
+
     def set_lon(self, lonlim=None):
         lonlim = self.__toList(lonlim)
         if (lonlim[0] is None):
             # Default : All area specified to the constructor
             begval = self.lon[0]
             endval = self.lon[-1]
-            if (begval < endval):
-                vmin = begval
-                vmax = endval
-            else:
-                vmin = endval
-                vmax = begval
-            lonlim = [vmin, vmax]
+
+            lonlim = [begval,endval]
         elif (len(lonlim) != 2):
             raise TypeError(f'Invalid Longitude Range : {lonlim}. lonlim must be a list with 2 elements')
-        else:
-            # If specified explicitly...
-            vmin = lonlim[0]
-            vmax = lonlim[1]
-            if (vmin > vmax):
-                # Rotation
-                vmin = vmin - 360
-                lonlim = [vmin, vmax]
-        
-        self.lonlim = lonlim
 
+        vmin, vmax = self.__lon_norm(lonlim)
+        lonlim = [vmin, vmax]
+        print(f'DEBUG : central_longitude : {self.central_longitude}')
+        if (vmax - vmin < 0.01):
+            print(f'Invalid longitude rage : {lonlim}. Change argument "central_longitude"')
+            #raise ValueError(f'Invalid longitude rage : {lonlim}. Change argument "central_longitude"')
+        else: 
+            print(f'DEBUG : Valid lonrange : {lonlim}')
+        self.lonlim = lonlim
+        
 
     def set_lat(self, latlim=None):
         latlim = self.__toList(latlim)
@@ -161,16 +171,6 @@ class mapplot:
         
         self.levlim = levlim
         self.levidx = np.argmin(np.abs(self.lev - levlim))  # Index of the specified vertical level
-
-
-    def set_center(self, lon=None, lat=None):
-        if (lon is None):
-            lon = (self.lonlim[0] + self.lonlim[1]) * 0.5
-
-        if (lat is None):
-            lat = (self.latlim[0] + self.latlim[1]) * 0.5
-
-        self.center = [lon, lat]
 
 
     def set_label(self, fontsize=10, grid=False, linewidth=1, linestyle='-', color='black', alpha=1):
@@ -247,18 +247,22 @@ class mapplot:
             data_pass = data[self.levidx,:,:]
             #print('DEBUG : ', self.levidx)
         
-        # Limit the area to be plotted
-        self.ax.set_extent(self.lonlim + self.latlim, crs=self.__crs)
-
-        #print('DEBUG : ', data_pass[0,:])
         # Plot
         if (self.method == 'contour'):
             self.__plot_contour(data_pass, **args)
         elif (self.method == 'shaded'):
             self.__plot_shaded(data_pass , **args)
         
+        # Limit the area to be plotted
+        self.ax.set_extent(self.lonlim + self.latlim, crs=self.__crs)
+        print(f'DEBUG : self.ax.set_extent({self.lonlim + self.latlim}, crs=self.__crs)')
+
+        #print('DEBUG : ', data_pass[0,:])
+        self.ax.set_autoscale_on(False)
+
 
     def __plot_contour(self, data, **kwargs):
+
         self.cont = self.ax.contour(self.mglon,
                                     self.mglat,
                                     data      ,
@@ -308,39 +312,23 @@ class mapplot:
             self.ccbar = cbar
 
 
+    # See the following website for the allowed projection:
+    # https://cartopy.readthedocs.io/stable/reference/projections.html'
     def __figureProjection(self):
-        clon = self.center[0]
-        clat = self.center[1]
-        projection = self.projection.lower()
-        proj_list = {'platecarree'         : lambda: ccrs.PlateCarree(central_longitude=clon),
-                     'albersequalarea'     : lambda: ccrs.AlbersEqualArea(central_longitude=clon, central_latitude=clat),
-                     'azimuthalequidistant': lambda: ccrs.AzimuthalEquidistant(central_longitude=clon, central_latitude=clat),
-                     'equidistantconic'    : lambda: ccrs.EquidistantConic(),
-                     'lambertconformal'    : lambda: ccrs.LambertConformal(central_longitude=clon, central_latitude=clat),
-                     'lambertcylindrical'  : lambda: ccrs.LambertCylindrical(central_longitude=clon),
-                     'mercator'            : lambda: ccrs.Mercator(central_longitude=clon, min_latitude=self.latlim[0], max_latitude=self.latlim[1]),
-                     'miller'              : lambda: ccrs.Miller(central_longitude=clon),
-                     'mollweide'           : lambda: ccrs.Mollweide(central_longitude=clon),
-                     'obliquemercator'     : lambda: ccrs.ObliqueMercator(central_longitude=clon, central_latitude=clat),
-                     'orthographic'        : lambda: ccrs.Orthographic(central_longitude=clon, central_latitude=clat),
-                     'robinson'            : lambda: ccrs.Robinson(central_longitude=clon),
-                     'sinusoidal'          : lambda: ccrs.Sinusoidal(central_longitude=clon),
-                     'stereographic'       : lambda: ccrs.Stereographic(central_latitude=clat),
-                     'transversemercator'  : lambda: ccrs.TransverseMercator(central_longitude=clon, central_latitude=clat),
-                    }
-                     #'equidistantconic'    : lambda: ccrs.EquidistantConic(central_longitude=clon, central_latitude=clat),
+        if (self.__proj is None):
+            if (self.central_longitude is not None):
+                self.__proj = ccrs.PlateCarree(central_longitude=self.central_longitude)
+            else:
+                self.central_longitude = 180.
+                self.__proj = ccrs.PlateCarree(central_longitude=self.central_longitude)
 
-        try:
-            self.__proj = proj_list[projection]()
-            #self.__crs  =  crs_list[projection]
-            self.__crs  = ccrs.PlateCarree()
-        except:
-            maps = []
-            for proj in proj_list:
-                maps = maps + ['"' + proj + '"']
-            err = f'{self.projection} is not in the projection list : ' + ', '.join(maps) + '. '
-            err = err + 'See the following website for the allowed projection : https://cartopy.readthedocs.io/stable/reference/projections.html'
-            raise ValueError(err)
+        clon = self.__proj.proj4_params.get('lon_0', None)
+        self.central_longitude = clon
+        #print('DEBUG : central_longitude=',clon)
+        #if (clon is not None):
+        #    self.__crs  = ccrs.PlateCarree(central_longitude=clon)
+        #else:
+        self.__crs  = ccrs.PlateCarree()
 
 
     def __gridlines_init(self):
@@ -370,6 +358,11 @@ class mapplot:
 
         self.gridlines.top_labels   = False
         self.gridlines.right_labels = False
+
+        lon_formatter = LongitudeFormatter()
+        lat_formatter = LatitudeFormatter()
+        self.ax.xaxis.set_major_formatter(lon_formatter)
+        self.ax.yaxis.set_major_formatter(lat_formatter)
 
 
     # Convert to List
