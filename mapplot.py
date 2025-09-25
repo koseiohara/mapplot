@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import cartopy.crs       as ccrs
 from cartopy.mpl.ticker import LongitudeFormatter, LatitudeFormatter
+from cartopy.util       import add_cyclic_point
 
 class mapplot:
 
@@ -20,18 +21,23 @@ class mapplot:
             raise TypeError(f"Unexpected Keyword(s): {', '.join(sorted(unknown))}. Allowed keywords: fig, posit, lon, lat, {', '.join(sorted(defaults.keys()))}")
         args = defaults.copy()
         args.update(kwargs)
+        self.__kwargs = args            # Copy for future meintainances
 
         self.lon = np.array(lon)
         self.lat = np.array(lat)
         self.lev = np.atleast_1d(np.array(args['lev'], dtype=float))
 
-        self.mglon, self.mglat = np.meshgrid(self.lon, self.lat)
+        dummy, self.lon_cycle = add_cyclic_point(self.lon, coord=self.lon)
+        self.mglon, self.mglat = np.meshgrid(self.lon_cycle, self.lat)
 
         self.__proj     = args['projection']
         self.__crs      = None
         self.central_longitude = args['central_longitude']  # Default center=180
+        self.edge_longitude    = None
         
-        self.set_lon(args['lonlim'])    # Set self.lonlim
+        self.__set_lon_core(args['lonlim'])     # Set self.lonlim
+        self.__set_clon()                       #  Set self.central_longitude
+        self.__set_lon_check()
         self.set_lat(args['latlim'])    # Set self.latlim
         self.set_lev(args['levlim'])    # Set self.levlim and self.levidx
 
@@ -41,8 +47,6 @@ class mapplot:
         self.method = 'contour'         # Default plot method as contour
         self.cmap   = 'bwr'             # Default color map as blue->white->red
         self.colors = None              # Default colors None
-
-        self.__kwargs = args            # Copy for future meintainances
 
         isValid = True
         # Position of ax in figure
@@ -95,45 +99,11 @@ class mapplot:
 
 
 
-    def __lon_norm(self, lon):
-        l0 = np.float64(lon[0])
-        l1 = np.float64(lon[1])
-
-        if (self.central_longitude is None):
-            work_l0 = l0
-            work_l1 = l1
-            if (work_l1 < work_l0):
-                work_l1 = work_l1 + 360
-            self.central_longitude = (work_l0 + work_l1) * 0.5
-
-        norm0 = (l0 - self.central_longitude + 180.) % 360. + self.central_longitude - 180.
-        norm1 = (l1 - self.central_longitude + 180.) % 360. + self.central_longitude - 180.
-        print(f'DEBUG : norm0={norm0}, norm1={norm1}')
-
-        return norm0, norm1
-
-
     def set_lon(self, lonlim=None):
-        lonlim = self.__toList(lonlim)
-        if (lonlim[0] is None):
-            # Default : All area specified to the constructor
-            begval = self.lon[0]
-            endval = self.lon[-1]
 
-            lonlim = [begval,endval]
-        elif (len(lonlim) != 2):
-            raise TypeError(f'Invalid Longitude Range : {lonlim}. lonlim must be a list with 2 elements')
+        self.__set_lon_core(lonlim)
+        check = self.__set_lon_check()
 
-        vmin, vmax = self.__lon_norm(lonlim)
-        lonlim = [vmin, vmax]
-        print(f'DEBUG : central_longitude : {self.central_longitude}')
-        if (vmax - vmin < 0.01):
-            print(f'Invalid longitude rage : {lonlim}. Change argument "central_longitude"')
-            #raise ValueError(f'Invalid longitude rage : {lonlim}. Change argument "central_longitude"')
-        else: 
-            print(f'DEBUG : Valid lonrange : {lonlim}')
-        self.lonlim = lonlim
-        
 
     def set_lat(self, latlim=None):
         latlim = self.__toList(latlim)
@@ -237,6 +207,10 @@ class mapplot:
         args.update(kwargs)
 
         args['transform'] = self.__crs
+        # Limit the area to be plotted
+        self.ax.set_extent(self.lonlim + self.latlim, crs=self.__crs)
+        print(f'DEBUG : self.ax.set_extent({self.lonlim + self.latlim}, crs=self.__crs)')
+
 
 
         if (data.ndim == 1 or data.ndim > 3):
@@ -246,6 +220,8 @@ class mapplot:
         elif (data.ndim == 3):
             data_pass = data[self.levidx,:,:]
             #print('DEBUG : ', self.levidx)
+
+        data_pass, dummy = add_cyclic_point(data_pass, coord=self.lon)
         
         # Plot
         if (self.method == 'contour'):
@@ -253,12 +229,8 @@ class mapplot:
         elif (self.method == 'shaded'):
             self.__plot_shaded(data_pass , **args)
         
-        # Limit the area to be plotted
-        self.ax.set_extent(self.lonlim + self.latlim, crs=self.__crs)
-        print(f'DEBUG : self.ax.set_extent({self.lonlim + self.latlim}, crs=self.__crs)')
-
         #print('DEBUG : ', data_pass[0,:])
-        self.ax.set_autoscale_on(False)
+        #self.ax.set_autoscale_on(False)
 
 
     def __plot_contour(self, data, **kwargs):
@@ -298,12 +270,12 @@ class mapplot:
         if (which == 'shaded'):
             # If shaded, show a colorbar of contourf
             if (self.shade is None):
-                raise RuntimeError('No shade plot to attach a colorbar to.')
+                raise RuntimeError('No shade plot to attach a colorbar to')
             cbar = self.fig.colorbar(self.shade, ax=self.ax, **args)
         elif (which == 'contour'):
             # If contour, show a colorbar of contour
             if (self.cont is None):
-                raise RuntimeError('No contour plot to attach a colorbar to.')
+                raise RuntimeError('No contour plot to attach a colorbar to')
             cbar = self.fig.colorbar(self.cont , ax=self.ax, **args)
         
         if (which == 'shaded'):
@@ -316,14 +288,10 @@ class mapplot:
     # https://cartopy.readthedocs.io/stable/reference/projections.html'
     def __figureProjection(self):
         if (self.__proj is None):
-            if (self.central_longitude is not None):
-                self.__proj = ccrs.PlateCarree(central_longitude=self.central_longitude)
-            else:
-                self.central_longitude = 180.
-                self.__proj = ccrs.PlateCarree(central_longitude=self.central_longitude)
+            self.__proj = ccrs.PlateCarree(central_longitude=self.central_longitude)
 
-        clon = self.__proj.proj4_params.get('lon_0', None)
-        self.central_longitude = clon
+        #clon = self.__proj.proj4_params.get('lon_0', None)
+        #self.central_longitude = clon
         #print('DEBUG : central_longitude=',clon)
         #if (clon is not None):
         #    self.__crs  = ccrs.PlateCarree(central_longitude=clon)
@@ -345,7 +313,10 @@ class mapplot:
                                            linestyle  =self.__gl_config['linestyle'],
                                            color      =self.__gl_config['color']    ,
                                            alpha      =self.__gl_config['alpha']    ,
-                                           draw_labels=True                         )
+                                           draw_labels=True                         ,
+                                           xformatter =LongitudeFormatter()         ,
+                                           yformatter =LatitudeFormatter()          ,
+                                          )
         self.gridlines.xlabel_style = {'size' : self.__gl_config['fontsize'],
                                        'color': self.__gl_config['color']   ,
                                       }
@@ -359,10 +330,84 @@ class mapplot:
         self.gridlines.top_labels   = False
         self.gridlines.right_labels = False
 
-        lon_formatter = LongitudeFormatter()
-        lat_formatter = LatitudeFormatter()
-        self.ax.xaxis.set_major_formatter(lon_formatter)
-        self.ax.yaxis.set_major_formatter(lat_formatter)
+        #lon_formatter = LongitudeFormatter()
+        #lat_formatter = LatitudeFormatter()
+        #self.ax.xaxis.set_major_formatter(lon_formatter)
+        #self.ax.yaxis.set_major_formatter(lat_formatter)
+
+        #self.ax.axes.tick_params()
+
+
+    def __lon_norm(self, lon):
+        l0 = np.float64(lon[0])
+        l1 = np.float64(lon[1])
+
+        #if (self.__proj is not None):
+        #    self.central_longitude = self.__proj.proj4_params.get('lon_0', None)
+        #elif (self.central_longitude is None):
+        #    work_l0 = l0
+        #    work_l1 = l1
+        #    if (work_l1 < work_l0):
+        #        work_l1 = work_l1 + 360
+        #    self.central_longitude = (work_l0 + work_l1) * 0.5
+
+        norm0 = l0 % 360.
+        norm1 = l1 % 360.
+        print(f'DEBUG : lon[0]={lon[0]}, lon[1]={lon[1]} ---> norm0={norm0}, norm1={norm1}')
+
+        return norm0, norm1
+
+
+    def __set_clon(self):
+        l0 = np.float64(self.lonlim[0])
+        l1 = np.float64(self.lonlim[1])
+
+        if (self.__proj is not None):
+            self.central_longitude = self.__proj.proj4_params.get('lon_0', None)
+        elif (self.central_longitude is None):
+            if (l1 < l0):
+                l1 = l1 + 360
+            self.central_longitude = (l0 + l1) * 0.5
+        
+        self.edge_longitude = (self.central_longitude + 180) % 360
+
+
+    def __set_lon_core(self, lonlim):
+        lonlim = self.__toList(lonlim)
+        if (lonlim[0] is None):
+            # Default : All area specified to the constructor
+            begval = self.lon[0]
+            endval = self.lon[-1]
+
+            lonlim = [begval,endval]
+        elif (len(lonlim) != 2):
+            raise TypeError(f'Invalid Longitude Range : {lonlim}. lonlim must be a list with 2 elements')
+        
+        vmin, vmax = self.__lon_norm(lonlim)
+        print(f'DEBUG : central_longitude : {self.central_longitude}, edge_longitude: {self.edge_longitude}')
+        if (vmin > vmax):
+            #vmin = vmin - 360
+            vmax = vmax + 360
+        
+        self.lonlim = [vmin, vmax]
+
+
+    def __set_lon_check(self):
+        lmin = self.lonlim[0]
+        lmax = self.lonlim[1]
+        angle_to_lmax = (lmax - lmin) % 360
+        angle_to_edge = (self.edge_longitude - lmin) % 360
+        if (angle_to_lmax > 360):
+            valid = False        # NG
+        elif (angle_to_lmax < angle_to_edge):
+            valid = True         # OK
+        else:
+            valid = False        # NG
+        
+        print(f'--DEBUG : longitude range : {lmin} to {lmax}')
+        if (not valid):
+            print(f'--- DEBUG : Invalid longitude range : {lmin} to {lmax}. Change argument "central_longitude"')
+
 
 
     # Convert to List
