@@ -14,7 +14,8 @@ class mapplot:
                     'levlim': None,                 # Vertical level to be plotted : assuming scalar
                     'projection': None,             # Graph Projection : assuming object
                     'resolution': 'medium',         # Map Resolution : high/h/10m, medium/m/50m, or low/l/110m
-                    'central_longitude': None       # Central longitude of map: range of longitude must not include this value
+                    'central_longitude': None,      # Central longitude of map: range of longitude must not include this value
+                    'verbose'          : False,     # print setting information
                    }
         unknown = set(kwargs) - defaults.keys()
         if unknown:
@@ -27,6 +28,9 @@ class mapplot:
         self.lat = np.array(lat)
         self.lev = np.atleast_1d(np.array(args['lev'], dtype=float))
 
+        self.__xlabelLoc_setted = False
+        self.__ylabelLoc_setted = False
+
         dummy, self.lon_cycle = add_cyclic_point(self.lon, coord=self.lon)
         self.mglon, self.mglat = np.meshgrid(self.lon_cycle, self.lat)
 
@@ -35,10 +39,14 @@ class mapplot:
         self.central_longitude = args['central_longitude']  # Default center=180
         self.edge_longitude    = None
         
-        self.__set_lon_core(args['lonlim'])     # Set self.lonlim
-        self.__set_clon()                       #  Set self.central_longitude
+        if (self.central_longitude is not None or self.__proj is not None):
+            self.__set_clon()                       #  Set self.central_longitude
+            self.__set_lon_core(args['lonlim'])     # Set self.lonlim
+        else:
+            self.__set_lon_core(args['lonlim'])     # Set self.lonlim
+            self.__set_clon()                       #  Set self.central_longitude
         self.__set_lon_check()
-        self.set_lat(args['latlim'])    # Set self.latlim
+        self.__set_lat_core(args['latlim'])     # Set self.latlim
         self.set_lev(args['levlim'])    # Set self.levlim and self.levidx
 
         self.__figureProjection()       # Set projection
@@ -67,11 +75,12 @@ class mapplot:
         else:
             isValid = False
 
-        if (idx < 1 or idx > rows*lines):
-            isValid = False
+        if (isValid):
+            if (idx < 1 or idx > rows*lines):
+                isValid = False
 
         if (not isValid):
-            raise ValueError(f'Invalid posit : {posit}')
+            raise ValueError(f'Invalid posit : {posit}. Expected a 3-digit subplot code (e.g., 111) or a list [rows, cols, index] with 1 <= index <= rows*cols.')
 
         self.fig   = fig
         self.ax    = self.fig.add_subplot(rows, lines, idx, projection=self.__proj)
@@ -91,47 +100,36 @@ class mapplot:
             self.resolution = 'low'
             cl_resolution   = '110m'
         else:
-            raise ValueError(f'Invalid map resolution : {resolution}')
+            raise ValueError(f'Invalid map resolution : {resolution}\n'
+                             'Use one of {"high", "h", "10m", "medium", "m", "50m", "low", "l", "110m"}'
+                            )
         self.ax.coastlines(resolution=cl_resolution, linewidth=0.5)
 
         self.gridlines = None
         self.__gridlines_init()
-
+        
+        print(f'DEBUG : self.lonlim={self.lonlim}')
+        self.ax.set_xticks(self.__set_ticks().tick_values(self.lonlim[0], self.lonlim[1]), crs=self.__crs)
+        self.ax.set_yticks(self.__set_ticks().tick_values(self.latlim[0], self.latlim[1]), crs=self.__crs)
 
 
     def set_lon(self, lonlim=None):
-
         self.__set_lon_core(lonlim)
         check = self.__set_lon_check()
+        if (not self.__xlabelLoc_setted):
+            self.ax.xaxis.set_major_locator(mticker.NullLocator())
+            self.ax.xaxis.set_major_formatter(mticker.NullFormatter())
+            #self.ax.set_xticks([], crs=self.__crs)
+            self.ax.set_xticks(self.__set_ticks().tick_values(self.lonlim[0], self.lonlim[1]), crs=self.__crs)
 
 
     def set_lat(self, latlim=None):
-        latlim = self.__toList(latlim)
-        if (latlim[0] is None):
-            # Default : All area specified to the constructor
-            begval = self.lat[0]
-            endval = self.lat[-1]
-            if (begval < endval):
-                vmin = begval
-                vmax = endval
-            else:
-                vmin = endval
-                vmax = begval
-        elif (len(latlim) != 2):
-            raise TypeError(f'Invalid Latitude Range : {latlim}. latlim must be a list with 2 elements')
-        else:
-            vmin = latlim[0]
-            vmax = latlim[1]
-            if (vmin > vmax):
-                # Fix the order of latlim
-                tmp  = vmin
-                vmin = vmax
-                vmax = tmp
-            if (vmin < -90.01 or vmax > 90.01):
-                # vmin and vmax must be between -90 and 90
-                raise ValueError(f'Invalid Latitude Range : {latlim}. Southern and Northern limit must be between -90 and 90')
-
-        self.latlim = [vmin, vmax]
+        self.__set_lat_core(latlim)
+        if (not self.__ylabelLoc_setted):
+            self.ax.yaxis.set_major_locator(mticker.NullLocator())
+            self.ax.yaxis.set_major_formatter(mticker.NullFormatter())
+            #self.ax.set_yticks([], crs=self.__crs)
+            self.ax.set_yticks(self.__set_ticks().tick_values(self.latlim[0], self.latlim[1]), crs=self.__crs)
 
 
     def set_lev(self, levlim=None):
@@ -157,13 +155,26 @@ class mapplot:
         self.gridlines.color = color
         self.gridlines.alpha = alpha
 
+        self.ax.xaxis.set_major_formatter(LongitudeFormatter())
+        self.ax.yaxis.set_major_formatter(LatitudeFormatter())
+
+        #lon_ticks = getattr(self.gridlines.xlocator, 'locs', None)
+        #lat_ticks = getattr(self.gridlines.ylocator, 'locs', None)
+
+        #print(f'DEBUG : lon_ticks={self.gridlines.xlocator}')
+        #print(f'DEBUG : lat_ticks={lat_ticks}')
+        #self.ax.tick_params(labelbottom=True, labelleft=True, labeltop=True, labelright=True)
+        #self.ax.set_xticks(crs=self.__crs)
+
 
     def label_loc(self, which, location):
         which = which.lower()
         if (which == 'x' or which == 'lon'):
             self.gridlines.xlocator = mticker.FixedLocator(location)
+            self.__xlabelLoc_setted = True
         elif (which == 'y' or which == 'lat'):
             self.gridlines.ylocator = mticker.FixedLocator(location)
+            self.__ylabelLoc_setted = True
         else:
             raise ValueError(f'Invalid parameter was obtained to label_loc() : which={which}. which must be "x"/"lon" or "y"/"lat".')
 
@@ -209,12 +220,12 @@ class mapplot:
         args['transform'] = self.__crs
         # Limit the area to be plotted
         self.ax.set_extent(self.lonlim + self.latlim, crs=self.__crs)
-        print(f'DEBUG : self.ax.set_extent({self.lonlim + self.latlim}, crs=self.__crs)')
+        #print(f'DEBUG : self.ax.set_extent({self.lonlim + self.latlim}, crs=self.__crs)')
 
 
 
         if (data.ndim == 1 or data.ndim > 3):
-            raise TypeError('Invalid data shape was obtained to display()')
+            raise ValueError(f'Invalid data shape for display(): expected 2D (lat, lon) or 3D (lev, lat, lon), got {data.shape}.')
         elif (data.ndim == 2):
             data_pass = data[:,:]
         elif (data.ndim == 3):
@@ -264,19 +275,28 @@ class mapplot:
             elif (self.cont is not None):
                 which = 'contour'
             else:
-                raise RuntimeError('No shade and contour to be refered by colorbar')
+                raise RuntimeError('No plotted artist to attach a colorbar to.\n'
+                                   'Call display() to draw a "shaded" (contourf) or "contour" plot first, '
+                                   'or specify which"shaded"/"contour".'
+                                  )
 
         which = which.lower()
         if (which == 'shaded'):
             # If shaded, show a colorbar of contourf
             if (self.shade is None):
-                raise RuntimeError('No shade plot to attach a colorbar to')
+                raise RuntimeError('Shade plot not found\n'
+                                   'Call display() with method="shaded" (contourf) before set_cbar(which="shaded").'
+                                  )
             cbar = self.fig.colorbar(self.shade, ax=self.ax, **args)
         elif (which == 'contour'):
             # If contour, show a colorbar of contour
             if (self.cont is None):
-                raise RuntimeError('No contour plot to attach a colorbar to')
+                raise RuntimeError('Contour plot not found\n'
+                                   'Call display() with method="contour" before set_cbar(which="contour").'
+                                  )
             cbar = self.fig.colorbar(self.cont , ax=self.ax, **args)
+        else:
+            raise ValueError('Invalid "which" for set_cbar(); expected "shaded" or "contour".')
         
         if (which == 'shaded'):
             self.scbar = cbar
@@ -313,7 +333,7 @@ class mapplot:
                                            linestyle  =self.__gl_config['linestyle'],
                                            color      =self.__gl_config['color']    ,
                                            alpha      =self.__gl_config['alpha']    ,
-                                           draw_labels=True                         ,
+                                           draw_labels=False                         ,
                                            xformatter =LongitudeFormatter()         ,
                                            yformatter =LatitudeFormatter()          ,
                                           )
@@ -329,6 +349,9 @@ class mapplot:
 
         self.gridlines.top_labels   = False
         self.gridlines.right_labels = False
+
+        self.ax.xaxis.set_major_formatter(LongitudeFormatter())
+        self.ax.yaxis.set_major_formatter(LatitudeFormatter())
 
         #lon_formatter = LongitudeFormatter()
         #lat_formatter = LatitudeFormatter()
@@ -353,21 +376,22 @@ class mapplot:
 
         norm0 = l0 % 360.
         norm1 = l1 % 360.
-        print(f'DEBUG : lon[0]={lon[0]}, lon[1]={lon[1]} ---> norm0={norm0}, norm1={norm1}')
+        #print(f'DEBUG : lon[0]={lon[0]}, lon[1]={lon[1]} ---> norm0={norm0}, norm1={norm1}')
 
         return norm0, norm1
 
 
     def __set_clon(self):
-        l0 = np.float64(self.lonlim[0])
-        l1 = np.float64(self.lonlim[1])
-
         if (self.__proj is not None):
             self.central_longitude = self.__proj.proj4_params.get('lon_0', None)
         elif (self.central_longitude is None):
+            l0 = np.float64(self.lonlim[0])
+            l1 = np.float64(self.lonlim[1])
+
             if (l1 < l0):
                 l1 = l1 + 360
             self.central_longitude = (l0 + l1) * 0.5
+            #self.central_longitude = (self.lon[0] + self.lon[-1]) * 0.5
         
         self.edge_longitude = (self.central_longitude + 180) % 360
 
@@ -376,15 +400,17 @@ class mapplot:
         lonlim = self.__toList(lonlim)
         if (lonlim[0] is None):
             # Default : All area specified to the constructor
-            begval = self.lon[0]
-            endval = self.lon[-1]
+            #begval = self.lon[0]
+            #endval = self.lon[-1]
+            begval = self.edge_longitude
+            endval = begval + self.lon[-1]
 
             lonlim = [begval,endval]
         elif (len(lonlim) != 2):
             raise TypeError(f'Invalid Longitude Range : {lonlim}. lonlim must be a list with 2 elements')
         
         vmin, vmax = self.__lon_norm(lonlim)
-        print(f'DEBUG : central_longitude : {self.central_longitude}, edge_longitude: {self.edge_longitude}')
+        #print(f'DEBUG : central_longitude : {self.central_longitude}, edge_longitude: {self.edge_longitude}')
         if (vmin > vmax):
             #vmin = vmin - 360
             vmax = vmax + 360
@@ -401,13 +427,60 @@ class mapplot:
             valid = False        # NG
         elif (angle_to_lmax < angle_to_edge):
             valid = True         # OK
+        elif (angle_to_edge - lmin < 1.E-5):
+            valid = True
         else:
             valid = False        # NG
         
-        print(f'--DEBUG : longitude range : {lmin} to {lmax}')
+        #print(f'--DEBUG : longitude range : {lmin} to {lmax}')
         if (not valid):
-            print(f'--- DEBUG : Invalid longitude range : {lmin} to {lmax}. Change argument "central_longitude"')
+            #print(f'--- DEBUG : Invalid longitude range : {lmin} to {lmax}. Change argument "central_longitude"')
+            raise ValueError('Invalid longitude range: '
+                             f'[{lmin}, {lmax}] with central_longitude={self.central_longitude} '
+                             f'(edge_longitude={self.edge_longitude}). '
+                             'The specified lonlim intersects the map seam (edge), which would split the plot. '
+                             'Since central_longitude/edge_longitude are immutable after initialization, '
+                             'recreate the instance with a different projection/central_longitude, '
+                             'or adjust lonlim so it does not cross the edge. '
+                             '\nNote: vmin>vmax is treated as a valid 360-degree spanning interval; values are not swapped. '
+                            )
+    
 
+    def __set_lat_core(self, latlim=None):
+        latlim = self.__toList(latlim)
+        if (latlim[0] is None):
+            # Default : All area specified to the constructor
+            begval = self.lat[0]
+            endval = self.lat[-1]
+            if (begval < endval):
+                vmin = begval
+                vmax = endval
+            else:
+                vmin = endval
+                vmax = begval
+        elif (len(latlim) != 2):
+            raise TypeError(f'Invalid Latitude Range : {latlim}. latlim must be a list with 2 elements')
+        else:
+            vmin = latlim[0]
+            vmax = latlim[1]
+            if (vmin > vmax):
+                # Fix the order of latlim
+                tmp  = vmin
+                vmin = vmax
+                vmax = tmp
+            if (vmin < -90.01 or vmax > 90.01):
+                # vmin and vmax must be between -90 and 90
+                raise ValueError(f'Invalid Latitude Range : {latlim}. Southern and Northern limit must be between -90 and 90')
+
+        self.latlim = [vmin, vmax]
+
+
+    def __set_ticks(self, loc=None):
+        if (loc is not None):
+            return mticker.FixedLocator(loc)
+
+        int_opt = [1, 2, 2.5, 3, 5, 6, 10]
+        return mticker.MaxNLocator(nbins=7, steps=int_opt)
 
 
     # Convert to List
