@@ -36,7 +36,7 @@ class mapplot:
 
         self.__proj     = args['projection']
         self.__crs      = None
-        self.central_longitude = args['central_longitude']  # Default center=180
+        self.central_longitude = args['central_longitude']
         self.edge_longitude    = None
         
         if (self.central_longitude is not None or self.__proj is not None):
@@ -115,10 +115,10 @@ class mapplot:
 
     def set_lon(self, lonlim=None):
         self.__set_lon_core(lonlim)
-        check = self.__set_lon_check()
+        self.__set_lon_check()
         if (not self.__xlabelLoc_setted):
             self.ax.xaxis.set_major_locator(mticker.NullLocator())
-            self.ax.xaxis.set_major_formatter(mticker.NullFormatter())
+            #self.ax.xaxis.set_major_formatter(mticker.NullFormatter())
             #self.ax.set_xticks([], crs=self.__crs)
             self.ax.set_xticks(self.__set_ticks().tick_values(self.lonlim[0], self.lonlim[1]), crs=self.__crs)
 
@@ -127,7 +127,7 @@ class mapplot:
         self.__set_lat_core(latlim)
         if (not self.__ylabelLoc_setted):
             self.ax.yaxis.set_major_locator(mticker.NullLocator())
-            self.ax.yaxis.set_major_formatter(mticker.NullFormatter())
+            #self.ax.yaxis.set_major_formatter(mticker.NullFormatter())
             #self.ax.set_yticks([], crs=self.__crs)
             self.ax.set_yticks(self.__set_ticks().tick_values(self.latlim[0], self.latlim[1]), crs=self.__crs)
 
@@ -141,40 +141,47 @@ class mapplot:
         self.levidx = np.argmin(np.abs(self.lev - levlim))  # Index of the specified vertical level
 
 
-    def set_label(self, fontsize=10, grid=False, linewidth=1, linestyle='-', color='black', alpha=1):
-        # Format of tick labels and frid lines
-        self.gridlines.xlabel_style = {'size': fontsize, 'color': color}
-        self.gridlines.ylabel_style = {'size': fontsize, 'color': color}
-
-        self.gridlines.xlines = grid    # Default : No grid lines
-        self.gridlines.ylines = grid    # Default : No grid lines
-
-        self.gridlines.linewidth = linewidth
-        self.gridlines.linestyle = linestyle
-
-        self.gridlines.color = color
-        self.gridlines.alpha = alpha
-
+    def set_label(self, x=None, y=None, fontsize=10, grid=False, linewidth=0.7, linestyle=':', color='grey', alpha=0.7):
+        # Format of tick labels and grid lines
+        self.gridlines = self.ax.gridlines(crs        =self.__crs,
+                                           linewidth  =linewidth ,
+                                           linestyle  =linestyle ,
+                                           color      =color     ,
+                                           alpha      =alpha     ,
+                                           draw_labels=False     ,
+                                          )
+        if (x is not None):
+            self.__label_loc('x', x)
+        if (y is not None):
+            self.__label_loc('y', y)
         self.ax.xaxis.set_major_formatter(LongitudeFormatter())
         self.ax.yaxis.set_major_formatter(LatitudeFormatter())
 
-        #lon_ticks = getattr(self.gridlines.xlocator, 'locs', None)
-        #lat_ticks = getattr(self.gridlines.ylocator, 'locs', None)
 
-        #print(f'DEBUG : lon_ticks={self.gridlines.xlocator}')
-        #print(f'DEBUG : lat_ticks={lat_ticks}')
-        #self.ax.tick_params(labelbottom=True, labelleft=True, labeltop=True, labelright=True)
-        #self.ax.set_xticks(crs=self.__crs)
-
-
-    def label_loc(self, which, location):
+    def __label_loc(self, which, location):
         which = which.lower()
+        loc_norm = location % 360
         if (which == 'x' or which == 'lon'):
-            self.gridlines.xlocator = mticker.FixedLocator(location)
+            #valid = ((loc_norm > self.lonlim[0]%360) & (loc_norm < self.lonlim[1]%360))
+            valid = ((loc_norm-self.lonlim[0])%360 >= 0) & ((self.lonlim[1]-self.lonlim[0])%360 <= 0)
+            #self.gridlines.xlocator = mticker.FixedLocator(location)
+            self.ax.xaxis.set_major_locator(mticker.NullLocator())
+            #self.ax.xaxis.set_major_locator(mticker.FixedLocator(location_norm))
+            self.ax.set_xticks(location, crs=self.__crs)
+            print(f'DEBUG : {location}')
+            print(f'DEBUG : {loc_norm}')
+            print(f'DEBUG : {valid}')
+            print(f'DEBUG : {location[valid]}')
+            self.gridlines.xlocator = mticker.FixedLocator(location[valid])
             self.__xlabelLoc_setted = True
         elif (which == 'y' or which == 'lat'):
-            self.gridlines.ylocator = mticker.FixedLocator(location)
+            valid = ((loc_norm > self.latlim[0]%360) & (loc_norm < self.latlim[1]%360))
+            #self.gridlines.ylocator = mticker.FixedLocator(location)
+            self.ax.yaxis.set_major_locator(mticker.NullLocator())
+            #self.ax.yaxis.set_major_locator(mticker.FixedLocator(location_norm))
+            self.ax.set_yticks(location, crs=self.__crs)
             self.__ylabelLoc_setted = True
+            self.gridlines.ylocator = mticker.FixedLocator(location[valid])
         else:
             raise ValueError(f'Invalid parameter was obtained to label_loc() : which={which}. which must be "x"/"lon" or "y"/"lat".')
 
@@ -220,7 +227,7 @@ class mapplot:
         args['transform'] = self.__crs
         # Limit the area to be plotted
         self.ax.set_extent(self.lonlim + self.latlim, crs=self.__crs)
-        #print(f'DEBUG : self.ax.set_extent({self.lonlim + self.latlim}, crs=self.__crs)')
+        print(f'DEBUG : self.ax.set_extent({self.lonlim + self.latlim}, crs=self.__crs)')
 
 
 
@@ -310,12 +317,6 @@ class mapplot:
         if (self.__proj is None):
             self.__proj = ccrs.PlateCarree(central_longitude=self.central_longitude)
 
-        #clon = self.__proj.proj4_params.get('lon_0', None)
-        #self.central_longitude = clon
-        #print('DEBUG : central_longitude=',clon)
-        #if (clon is not None):
-        #    self.__crs  = ccrs.PlateCarree(central_longitude=clon)
-        #else:
         self.__crs  = ccrs.PlateCarree()
 
 
@@ -347,18 +348,10 @@ class mapplot:
         self.gridlines.xlines = self.__gl_config['grid']    # Default : No grid lines
         self.gridlines.ylines = self.__gl_config['grid']    # Default : No grid lines
 
-        self.gridlines.top_labels   = False
-        self.gridlines.right_labels = False
-
-        self.ax.xaxis.set_major_formatter(LongitudeFormatter())
-        self.ax.yaxis.set_major_formatter(LatitudeFormatter())
-
-        #lon_formatter = LongitudeFormatter()
-        #lat_formatter = LatitudeFormatter()
-        #self.ax.xaxis.set_major_formatter(lon_formatter)
-        #self.ax.yaxis.set_major_formatter(lat_formatter)
-
-        #self.ax.axes.tick_params()
+        self.gridlines.top_labels    = False
+        self.gridlines.bottom_labels = False
+        self.gridlines.right_labels  = False
+        self.gridlines.left_labels   = False
 
 
     def __lon_norm(self, lon):
@@ -400,10 +393,12 @@ class mapplot:
         lonlim = self.__toList(lonlim)
         if (lonlim[0] is None):
             # Default : All area specified to the constructor
-            #begval = self.lon[0]
-            #endval = self.lon[-1]
-            begval = self.edge_longitude
-            endval = begval + self.lon[-1]
+            if (self.edge_longitude is not None):
+                begval = self.edge_longitude
+                endval = begval + self.lon[-1]
+            else:
+                begval = self.lon[0]
+                endval = self.lon[-1]
 
             lonlim = [begval,endval]
         elif (len(lonlim) != 2):
@@ -424,14 +419,21 @@ class mapplot:
         angle_to_lmax = (lmax - lmin) % 360
         angle_to_edge = (self.edge_longitude - lmin) % 360
         if (angle_to_lmax > 360):
+            print('DEBUG : if (angle_to_lmax > 360):')
             valid = False        # NG
         elif (angle_to_lmax < angle_to_edge):
+            print('DEBUG : elif (angle_to_lmax < angle_to_edge):')
             valid = True         # OK
-        elif (angle_to_edge - lmin < 1.E-5):
+        elif ((self.edge_longitude - lmin) % 360 < 1.E-5):
+            print('DEBUG : elif (self.edge_longitude - lmin < 1.E-5):')
             valid = True
         else:
+            print('DEBUG : else:')
             valid = False        # NG
-        
+
+        print(f'DEBUG : self.lonlim = {self.lonlim}')
+        print(f'DEBUG : self.edge_longitude = {self.edge_longitude}')
+        print(f'DEBUG : angle_to_lmax={angle_to_lmax}, angle_to_edge={angle_to_edge}')
         #print(f'--DEBUG : longitude range : {lmin} to {lmax}')
         if (not valid):
             #print(f'--- DEBUG : Invalid longitude range : {lmin} to {lmax}. Change argument "central_longitude"')
