@@ -29,11 +29,11 @@ class mapplot:
         self.lat = np.array(lat)
         self.lev = np.atleast_1d(np.array(args['lev'], dtype=float))
 
-        dummy, self.lon_cycle = add_cyclic_point(self.lon, coord=self.lon)
+        dummy, self.lon_cycle  = add_cyclic_point(self.lon, coord=self.lon)
         self.mglon, self.mglat = np.meshgrid(self.lon_cycle, self.lat)
 
-        self.__proj     = args['projection']
-        self.__crs      = None
+        self.__proj            = args['projection']
+        self.__crs             = None
         self.central_longitude = args['central_longitude']
         self.edge_longitude    = None
         
@@ -51,6 +51,7 @@ class mapplot:
         self.projection = self.__proj.__class__.__name__
 
         self.method = 'contour'         # Default plot method as contour
+
         self.__cmap_default   = 'bwr'   # Default color map as blue->white->red
         self.__colors_default = None    # Default colors None
         self.cmap   = self.__cmap_default
@@ -82,14 +83,14 @@ class mapplot:
         if (not isValid):
             raise ValueError(f'Invalid posit : {posit}. Expected a 3-digit subplot code (e.g., 111) or a list [rows, cols, index] with 1 <= index <= rows*cols.')
 
-        self.fig    = fig
-        self.ax     = self.fig.add_subplot(rows, lines, idx, projection=self.__proj)
-        self.cont   = None      # None until contour plot
-        self.shade  = None      # None until shade plot
-        self.hatch  = None      # None until hatch plot
-        self.vector = None      # None until vector plot
-        self.ccbar  = None      # Color Bar for contour
-        self.scbar  = None      # Color Bar for shade
+        self.fig         = fig
+        self.ax          = self.fig.add_subplot(rows, lines, idx, projection=self.__proj)
+        self.cont        = None     # None until contour plot
+        self.shade       = None     # None until shade plot
+        self.hatch       = None     # None until hatch plot
+        self.vector      = None     # None until vector plot
+        self.ccbar       = None     # Color Bar for contour
+        self.scbar       = None     # Color Bar for shade
         self.vector_repr = None     # Representative value of vector
 
         resolution = args['resolution'].lower()
@@ -109,15 +110,18 @@ class mapplot:
         self.ax.coastlines(resolution=cl_resolution, linewidth=0.5)
 
         self.gridlines = None
+        self.set_extent()
 
 
     def set_lon(self, lonlim=None):
         self.__set_lon_core(lonlim)
         self.__set_lon_check()
+        self.set_extent()
 
 
     def set_lat(self, latlim=None):
         self.__set_lat_core(latlim)
+        self.set_extent()
 
 
     def set_lev(self, levlim=None):
@@ -127,6 +131,10 @@ class mapplot:
         
         self.levlim = levlim
         self.levidx = np.argmin(np.abs(self.lev - levlim))  # Index of the specified vertical level
+
+
+    def set_extent(self):
+        self.ax.set_extent(self.lonlim + self.latlim, crs=self.__crs)
 
 
     def set_label(self, x=None, y=None, fontsize=10, fontcolor='black', grid=True, linewidth=0.7, linestyle=':', linecolor='grey', alpha=0.7):
@@ -140,9 +148,11 @@ class mapplot:
                                            xformatter =LongitudeFormatter(),
                                            yformatter =LatitudeFormatter() ,
                                           )
+        # Specify the locations of ticks
         self.gridlines.xlocator = self.__set_ticks(x)
         self.gridlines.ylocator = self.__set_ticks(y)
 
+        # Tick format
         self.gridlines.xlabel_style = {'size' : fontsize ,
                                        'color': fontcolor,
                                       }
@@ -154,40 +164,13 @@ class mapplot:
         self.gridlines.xlines = grid    # Default : grid lines on
         self.gridlines.ylines = grid    # Default : grid lines on
 
+        # Delete Top and right ticks
         self.gridlines.top_labels   = False
         self.gridlines.right_labels = False
 
 
-    #def __label_loc(self, which, location):
-    #    which = which.lower()
-    #    loc_norm = location % 360
-    #    if (which == 'x' or which == 'lon'):
-    #        #valid = ((loc_norm > self.lonlim[0]%360) & (loc_norm < self.lonlim[1]%360))
-    #        valid = ((loc_norm-self.lonlim[0])%360 >= 0) & ((self.lonlim[1]-self.lonlim[0])%360 <= 0)
-    #        #self.gridlines.xlocator = mticker.FixedLocator(location)
-    #        self.ax.xaxis.set_major_locator(mticker.NullLocator())
-    #        #self.ax.xaxis.set_major_locator(mticker.FixedLocator(location_norm))
-    #        self.ax.set_xticks(location, crs=self.__crs)
-    #        print(f'DEBUG : {location}')
-    #        print(f'DEBUG : {loc_norm}')
-    #        print(f'DEBUG : {valid}')
-    #        print(f'DEBUG : {location[valid]}')
-    #        self.gridlines.xlocator = mticker.FixedLocator(location[valid])
-    #        self.__xlabelLoc_setted = True
-    #    elif (which == 'y' or which == 'lat'):
-    #        valid = ((loc_norm > self.latlim[0]%360) & (loc_norm < self.latlim[1]%360))
-    #        #self.gridlines.ylocator = mticker.FixedLocator(location)
-    #        self.ax.yaxis.set_major_locator(mticker.NullLocator())
-    #        #self.ax.yaxis.set_major_locator(mticker.FixedLocator(location_norm))
-    #        self.ax.set_yticks(location, crs=self.__crs)
-    #        self.__ylabelLoc_setted = True
-    #        self.gridlines.ylocator = mticker.FixedLocator(location[valid])
-    #    else:
-    #        raise ValueError(f'Invalid parameter was provided to label_loc() : which={which}. which must be "x"/"lon" or "y"/"lat".')
-
-
     def gxout(self, method, cmap=None, colors=None):
-        # Set plot method : contour of shade/contourf
+        # Set plot method : contour, shade/contourf, hatches, or vector
         method_allowed = ['contour', 'shaded', 'hatches', 'vector']
         method = method.lower()
         if (method in method_allowed):
@@ -205,7 +188,7 @@ class mapplot:
         if (cmap is not None):
             self.cmap   = cmap
             self.colors = None
-        # Colors has higher priority
+        # colors option has higher priority
         if (colors is not None):
             self.cmap   = None
             self.colors = colors
@@ -216,23 +199,26 @@ class mapplot:
     # 'transform' argument cannot be changed
     # "y" option is acceptable only if method=vector
     def display(self, data, y=None, **kwargs):
+        # Default parameter settings for each method
         if (self.method == 'contour'):
             defaults = {'linestyles': 'solid'}
         elif (self.method == 'shaded'):
             defaults = {'extend': 'both'}
         elif (self.method == 'hatches'):
-            defaults = {'s': 0.3, 'c': 'black', 'marker': '.', 'interval': 3}
+            defaults = {'size': 0.3, 'color': 'black', 'marker': '.', 'interval': 3}
         elif (self.method == 'vector'):
             defaults = {'angles': 'xy', 'scale_units': 'xy', 'color': 'black', 'width': 0.003, 'headlength': 2, 'headwidth': 2, 'color': 'black', 'regrid_shape': 30,}
-        #else:
-            #print('DEBUG : Unexpected method')
 
         args = defaults.copy()
         if (self.cmap is not None):
-            args['cmap'] = self.cmap
+            # if cmap and colors are not specified to this function
+            if (('cmap' not in kwargs) and ('colors' not in kwargs)):
+                args['cmap'] = self.cmap
 
         if (self.colors is not None):
-            args['colors'] = self.colors
+            # if cmap and colors are not specified to this function
+            if (('cmap' not in kwargs) and ('colors' not in kwargs)):
+                args['colors'] = self.colors
 
         args.update(kwargs)
 
@@ -244,22 +230,10 @@ class mapplot:
             if (y is not None):
                 warnings.warn('Argument "y" was provided to display(), but it is only acceptable when method="vector"', UserWarning)
 
-        # Limit the area to be plotted
-        self.ax.set_extent(self.lonlim + self.latlim, crs=self.__crs)
-        print(f'DEBUG : self.ax.set_extent({self.lonlim + self.latlim}, crs=self.__crs)')
-
-
-        #if (data.ndim == 1 or data.ndim > 3):
-        #    raise ValueError(f'Invalid data shape for display(): expected 2D (lat, lon) or 3D (lev, lat, lon), got {data.shape}.')
-        #elif (data.ndim == 2):
-        #    data_pass = data[:,:]
-        #elif (data.ndim == 3):
-        #    data_pass = data[self.levidx,:,:]
-        #    #print('DEBUG : ', self.levidx)
         data_pass = self.__select_level(data)
 
         data_pass, dummy = add_cyclic_point(data_pass, coord=self.lon)
-        
+
         # Plot
         if (self.method == 'contour'):
             self.__plot_contour(data_pass, **args)
@@ -271,8 +245,6 @@ class mapplot:
             y_pass = self.__select_level(y)
             y_pass, dummy = add_cyclic_point(y_pass, coord=self.lon)
             self.__plot_vector(data_pass, y_pass, **args)
-        #print('DEBUG : ', data_pass[0,:])
-        #self.ax.set_autoscale_on(False)
 
 
     def __plot_contour(self, data, **kwargs):
@@ -297,22 +269,24 @@ class mapplot:
 
         interval = kwargs['interval']
 
-        #y, x = np.where(data)
-        #work_lon = self.mglon[y,x]
-        #work_lat = self.mglat[y,x]
-        #work_lon = work_lon[::interval]#,::interval]
-        #work_lat = work_lat[::interval]#,::interval]
-
+        # Limit density of dots
         work_lon  = self.mglon[::interval,::interval]
         work_lat  = self.mglat[::interval,::interval]
         work_data = data[::interval,::interval]
         y, x = np.where(work_data)
-        work_lon = work_lon[y,x]#,::interval]
-        work_lat = work_lat[y,x]#,::interval]
+        work_lon = work_lon[y,x]
+        work_lat = work_lat[y,x]
 
         args = kwargs.copy()
+        if ('s' not in args):
+            args['s'] = args['size']
+        if ('c' not in args):
+            args['c'] = args['color']
+        # Delete 'interval', 'size', 'colors' and 'color'
         args.pop('interval')
+        args.pop('size'  , None)
         args.pop('colors', None)
+        args.pop('color' , None)
         self.hatch = self.ax.scatter(work_lon,
                                      work_lat,
                                      **args  )
@@ -339,8 +313,10 @@ class mapplot:
                                      x         ,
                                      y         ,
                                      **kwargs  )
+
+        # Representative length of arrows for vector legend
         lens = x*x + y*y
-        percentile = np.nanpercentile(lens, 75)
+        percentile = np.nanpercentile(lens, 80)     # 80 percentile
         self.vector_repr = self.__round5(np.sqrt(percentile))
 
 
@@ -354,6 +330,7 @@ class mapplot:
             args['pad'] = 0.03
 
         if (which is None):
+            # shaded method has higher priority
             if (self.shade is not None):
                 which = 'shaded'
             elif (self.cont is not None):
@@ -393,6 +370,8 @@ class mapplot:
             raise RuntimeError('Vector plot not found\n'
                                'Call display() with method="vector" before set_vector_legend()'
                               )
+
+        # If U is None, length of reference is automatically chosen using self.vector_repr
         if (U is None):
             U = self.vector_repr
 
@@ -416,10 +395,11 @@ class mapplot:
                 kwargs['angle'] = 90
             else:
                 raise ValueError('Invalid value was provided to argument "direction". Specify "x" or "y"')
-        
+
         self.ax.quiverkey(self.vector, X=X, Y=Y, U=U, labelpos=labelpos, label=label, coordinates=coordinates, **kwargs)
 
 
+    # Mark to (a) specified position(s)
     def mark(self, x, y, **kwargs):
         defaults = {'marker': 'o', 'c': 'black', 'linewidth': 0}
         args = defaults.copy()
@@ -466,6 +446,7 @@ class mapplot:
         self.__crs  = ccrs.PlateCarree()
 
 
+    # Not used
     def __gridlines_init(self):
         # Initializing gridline in the constructor with the default value
         self.__gl_config = {'fontsize' : 10     ,
@@ -490,7 +471,7 @@ class mapplot:
         self.gridlines.ylabel_style = {'size' : self.__gl_config['fontsize'],
                                        'color': self.__gl_config['color']   ,
                                       }
-        
+
         self.gridlines.xlines = self.__gl_config['grid']    # Default : No grid lines
         self.gridlines.ylines = self.__gl_config['grid']    # Default : No grid lines
 
@@ -500,6 +481,7 @@ class mapplot:
         self.gridlines.left_labels   = False
 
 
+    # Longitude to 0-360 coordinate
     def __lon_norm(self, lon):
         l0 = np.float64(lon[0])
         l1 = np.float64(lon[1])
@@ -511,6 +493,9 @@ class mapplot:
         return norm0, norm1
 
 
+    # Estimate the central longitude
+    # If this class has __proj or central_longitude, they are used for the result.
+    # Otherwise, the result is estimated from longitude range (lonlim)
     def __set_clon(self):
         if (self.__proj is not None):
             self.central_longitude = self.__proj.proj4_params.get('lon_0', None)
@@ -522,15 +507,17 @@ class mapplot:
                 l1 = l1 + 360
             self.central_longitude = (l0 + l1) * 0.5
             #self.central_longitude = (self.lon[0] + self.lon[-1]) * 0.5
-        
+
         self.edge_longitude = (self.central_longitude + 180) % 360
 
 
+    # Set longitude range
     def __set_lon_core(self, lonlim):
         lonlim = self.__toList(lonlim)
         if (lonlim[0] is None):
             # Default : All area specified to the constructor
             if (self.edge_longitude is not None):
+                # Avoiding the edge_longitude comming into the plot area
                 begval = self.edge_longitude
                 endval = begval + self.lon[-1]
             else:
@@ -540,11 +527,9 @@ class mapplot:
             lonlim = [begval,endval]
         elif (len(lonlim) != 2):
             raise TypeError(f'Invalid Longitude Range : {lonlim}. lonlim must be a list with 2 elements')
-        
+
         vmin, vmax = self.__lon_norm(lonlim)
-        #print(f'DEBUG : central_longitude : {self.central_longitude}, edge_longitude: {self.edge_longitude}')
         if (vmin > vmax):
-            #vmin = vmin - 360
             vmax = vmax + 360
         
         self.lonlim = [vmin, vmax]
@@ -555,25 +540,17 @@ class mapplot:
         lmax = self.lonlim[1]
         angle_to_lmax = (lmax - lmin) % 360
         angle_to_edge = (self.edge_longitude - lmin) % 360
+        # Checking whether edge_longitude is not in the plot area
         if (angle_to_lmax > 360):
-            print('DEBUG : if (angle_to_lmax > 360):')
             valid = False        # NG
         elif (angle_to_lmax < angle_to_edge):
-            print('DEBUG : elif (angle_to_lmax < angle_to_edge):')
             valid = True         # OK
         elif ((self.edge_longitude - lmin) % 360 < 1.E-5):
-            print('DEBUG : elif (self.edge_longitude - lmin < 1.E-5):')
             valid = True
         else:
-            print('DEBUG : else:')
             valid = False        # NG
 
-        print(f'DEBUG : self.lonlim = {self.lonlim}')
-        print(f'DEBUG : self.edge_longitude = {self.edge_longitude}')
-        print(f'DEBUG : angle_to_lmax={angle_to_lmax}, angle_to_edge={angle_to_edge}')
-        #print(f'--DEBUG : longitude range : {lmin} to {lmax}')
         if (not valid):
-            #print(f'--- DEBUG : Invalid longitude range : {lmin} to {lmax}. Change argument "central_longitude"')
             raise ValueError('Invalid longitude range: '
                              f'[{lmin}, {lmax}] with central_longitude={self.central_longitude} '
                              f'(edge_longitude={self.edge_longitude}). '
@@ -583,7 +560,7 @@ class mapplot:
                              'or adjust lonlim so it does not cross the edge. '
                              '\nNote: vmin>vmax is treated as a valid 360-degree spanning interval; values are not swapped. '
                             )
-    
+
 
     def __set_lat_core(self, latlim=None):
         latlim = self.__toList(latlim)
@@ -621,11 +598,11 @@ class mapplot:
             data_pass = data[:,:]
         elif (data.ndim == 3):
             data_pass = data[self.levidx,:,:]
-            #print('DEBUG : ', self.levidx)
 
         return data_pass
 
 
+    # Set tick positions
     def __set_ticks(self, loc=None):
         if (loc is not None):
             return mticker.FixedLocator(loc)
@@ -644,6 +621,7 @@ class mapplot:
             return [a]
 
 
+    # Round to 0, 0.5, or 1
     def __round5(self, value):
         base    = 10**self.__digit(value)
         step    = base * 0.5
@@ -651,6 +629,7 @@ class mapplot:
         return output
 
 
+    # Get the order of value
     def __digit(self, value):
         err_fix = 1.E-12
         digit   = np.floor(np.log10(value) + err_fix)
