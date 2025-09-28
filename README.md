@@ -231,7 +231,7 @@ y-component of the vector.
 
 #### `kwargs`
 In addition to the arguments explained above, this function can accept several keywords.
-All arguments of Matplotlib's `contour`, `contourf`, `scatter`, and `quiver` functions are available for `method=``"contour"`/`"shaded"`/`"hatches"`/`"vector"`, respectively.  
+All arguments of Matplotlib's `contour`, `contourf`, `scatter`, and `quiver` functions are available for `method="contour"`/`"shaded"`/`"hatches"`/`"vector"`, respectively.  
 Some keywords have default values.
 - `contour`
     - `linestyles="solid"`
@@ -292,7 +292,7 @@ If omitted, rounded value of the 80 percentile of vector length is used.
 Optional  
 Default : `"S"`
 Position of the label.
-`"N"`, `"S"`, `"E"`, `"W"` for Above, below, right, left, respectively.
+`"N"`, `"S"`, `"E"`, `"W"` for above, below, right, left, respectively.
 
 #### `label`
 Optional  
@@ -348,7 +348,7 @@ String.
 
 #### `coord`
 Optional  
-Default : `"latlon"`
+Default : `"latlon"`  
 Coordinate of `x` and `y` arguments.
 `"latlon"`/`"ll"`, `"ax"`, or `"fig"`.
 
@@ -357,15 +357,15 @@ In addition to the argument explained above, this function can accept several ke
 All arguments of Matplotlib's `text` functions are available.  
 
 ## set_xlabel<a id="set-xlabel"></a>
-A wrapper function of `matplotlib.axes.Axes.set_xlabel`
+A wrapper function of `matplotlib.axes.Axes.set_xlabel`.
 The usage is completely the same.
 
 ## set_ylabel<a id="set-ylabel"></a>
-A wrapper function of `matplotlib.axes.Axes.set_ylabel`
+A wrapper function of `matplotlib.axes.Axes.set_ylabel`.
 The usage is completely the same.
 
 ## set_title<a id="set-title"></a>
-A wrapper function of `matplotlib.axes.Axes.set_title`
+A wrapper function of `matplotlib.axes.Axes.set_title`.
 The usage is completely the same.
 
 
