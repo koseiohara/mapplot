@@ -104,6 +104,7 @@ The longitude range cannot include the longitude `central_longitude-180`.
 Default : `None`  
 A projection function defined in `cartopy.crs`.
 If omitted, `cartopy.crs.PlateCarree()` will be chosen with the `central_longitude` defined by the argument `central_longitude` or `lonlim`.
+See the website of [Cartopy](https://cartopy.readthedocs.io/stable/reference/projections.html) for the acceptable functions.
 - `resolution`  
 Default : `"medium"`  
 The resolution of the coastlines.
@@ -114,6 +115,7 @@ The resolution of the coastlines.
 This function allows us to change the longitude range to be plotted.
 ### Arguments
 #### `lonlim`
+Optional  
 Default : `None`  
 Range of the longitude to be plotted.
 If omitted, the entire range of longitude will be chosen.
@@ -122,6 +124,7 @@ If omitted, the entire range of longitude will be chosen.
 This function allows us to change the latitude range to be plotted.
 ### Arguments
 #### `latlim`
+Optional  
 Default : `None`  
 Range of the latitude to be plotted.
 If omitted, the entire range of latitude will be chosen.
@@ -130,6 +133,7 @@ If omitted, the entire range of latitude will be chosen.
 This function allows us to change the level to be plotted.
 ### Arguments
 #### `levlim`
+Optional  
 Default : `None`  
 Level to be plotted.
 If omitted, the first index of `lev` will be chosen.
@@ -143,5 +147,224 @@ No arguments.
 ## set_label<a id="set-label"></a>
 This function set the format and the positions of the x and y ticks.
 ### Arguments
+#### `x`
+Optional  
+Default : `None`  
+The location of x ticks.
+
+#### `y`
+Optional  
+Default : `None`  
+The location of y ticks.
+
+#### `fontsize`
+Optional  
+Default : `10`  
+The font size of x and y tick labels.
+
+#### `fontcolor`
+Optional  
+Default : `black`  
+The font color of x and y tick labels.
+
+#### `grid`
+Optional  
+Default : `True`  
+Grid lines on/off.
+
+#### `linewidth`
+Optional  
+Default : `0.7`  
+Width of grid lines.
+
+#### `linestyle`
+Optional  
+Default : `":"`  
+Style of grid lines.
+See the website of [Matplotlib](https://matplotlib.org/stable/gallery/lines_bars_and_markers/linestyles.html?utm_source=chatgpt.com) for the detail of options.
+
+#### `linecolor`
+Default : `"grey"`  
+Color of grid lines.
+
+#### `alpha`
+Optional  
+Default : `0.7`  
+Alpha value of grid lines.
+
+## gxout<a id="gxout"></a>
+Settings for the method of the next plotting.
+### Arguments
+#### `method`
+The method of the next `display()`.
+`"contour"`, `"shaded"`, `"hatches"`, or `"vector"`.
+
+#### `cmap`
+Optional  
+Default : `None`  
+Colormap.
+If both `cmap` and `colors` areguments are `None`, `cmap="bwr"` is set.
+`colors` argument has higher priority.
+
+#### `colors`
+Optional  
+Default : `None`  
+Colors of each level.
+If both `cmap` and `colors` areguments are `None`, `cmap="bwr"` is set.
+`colors` argument has higher priority.
+
+## display<a id="display"></a>
+Display a graph based on the settings provided to `gxout()`.
+### Arguments
+#### `data`
+2- or 3-dimensional ndarray to be plotted.
+Size of the first and second (if 3-dimensional, second and third) dimension must be equal to `lon` and `lat` provided to [mapplot](#mapplot).
+
+#### `y`
+Optional  
+Default : `None`  
+2- or 3-dimensional ndarray to be plotted.
+Size of the first and second (if 3-dimensional, second and third) dimension must be equal to `lon` and `lat` provided to [mapplot](#mapplot).
+Acceptable only when `method="vector"`.
+y-component of the vector.
+
+#### `kwargs`
+In addition to the arguments explained above, this function can accept several keywords.
+All arguments of Matplotlib's `contour`, `contourf`, `scatter`, and `quiver` functions are available for `method=``"contour"`/`"shaded"`/`"hatches"`/`"vector"`, respectively.  
+Some keywords have default values.
+- `contour`
+    - `linestyles="solid"`
+- `shaded`
+    - `extend="both"`
+- `hatches`
+    - `size=0.3` : same as `s` option of `scatter`  
+    - `color="black"` : same as `c` option of `scatter`  
+    - `marker="."`  
+    In addition to these arguments, density of dots can be set by `interval` options:
+    - `interval`  
+    Optional  
+    Default : `3`  
+- `vector`
+    - `angles="xy"`
+    - `scale_units="xy"`
+    - `color="black"`
+    - `width=0.003`
+    - `headlength=2`
+    - `headwidth=2`
+    - `regrid_shape=30`
+
+## set_cbar<a id="set-cbar"></a>
+Insert a colorbar.
+### Arguments
+#### `which`
+Optional  
+Default : `None`  
+`"shaded"` or `"contour"`.
+If omitted, a colorbar will be added to whichever plot exists among `contour` and `shaded`.
+If both of them exist, `shaded` has higher priority.
+
+#### `kwargs`
+In addition to the argument explained above, this function can accept several keywords.
+All arguments of Matplotlib's `colorbar` functions are available.  
+Some keywords have default values.
+- `location="bottom"`
+- `shrink=0.9`
+- `aspect=40`
+- `pad=0.08` if `location="bottom"` and `pad=0.03` if `location="right"` or `location="left"`
+
+## set_vector_legent<a id="set-vector-legend"></a>
+Insert a legend of vector.
+### Arguments
+#### `X`
+X-position of the legend.
+
+#### `Y`
+Y-position of the legend.
+
+#### `U`
+Optional  
+Default : `None`  
+The length of the key.
+If omitted, rounded value of the 80 percentile of vector length is used.
+
+#### `labelpos`
+Optional  
+Default : `"S"`
+Position of the label.
+`"N"`, `"S"`, `"E"`, `"W"` for Above, below, right, left, respectively.
+
+#### `label`
+Optional  
+Default : `None`  
+The key label.
+If omitted, the value of `U` is shown.
+
+#### `direction`
+Optional  
+Default : `"x"`  
+The direction of the key.
+The key points to the right if `direction="x"` and to the top if `direction="y"`
+
+#### `coordinate`
+Optional  
+Default : `"axes"`  
+Unit of `X` and `Y` arguments.
+`"axes"`, `"figure"`, `"data"`, or `"inches"`.
+See the website of [Matplotlib](https://matplotlib.org/stable/api/_as_gen/matplotlib.quiver.QuiverKey.html) for the detail.
+
+#### `kwargs`
+In addition to the argument explained above, this function can accept several keywords.
+All arguments of Matplotlib's `quiverkey` functions are available.  
+
+## mark<a id="mark"></a>
+Insert (a) dot(s) to the map.
+### Arguments
+#### `x`
+Longitude at where a dot will be inserted.
+
+#### `y`
+Latitude at where a dot will be inserted.
+
+#### `kwargs`
+In addition to the argument explained above, this function can accept several keywords.
+All arguments of Matplotlib's `scatter` functions are available.  
+Some keywords have default values.
+- `marker="o"`
+- `c="black"`
+- `linewidth=0`
+
+## text<a id="text"></a>
+Insert a string to the map.
+### Arguments
+#### `x`
+Longitude at where a string will be inserted.
+
+#### `y`
+Latitude at where a string will be inserted.
+
+#### `s`
+String.
+
+#### `coord`
+Optional  
+Default : `"latlon"`
+Coordinate of `x` and `y` arguments.
+`"latlon"`/`"ll"`, `"ax"`, or `"fig"`.
+
+#### `kwargs`
+In addition to the argument explained above, this function can accept several keywords.
+All arguments of Matplotlib's `text` functions are available.  
+
+## set_xlabel<a id="set-xlabel"></a>
+A wrapper function of `matplotlib.axes.Axes.set_xlabel`
+The usage is completely the same.
+
+## set_ylabel<a id="set-ylabel"></a>
+A wrapper function of `matplotlib.axes.Axes.set_ylabel`
+The usage is completely the same.
+
+## set_title<a id="set-title"></a>
+A wrapper function of `matplotlib.axes.Axes.set_title`
+The usage is completely the same.
 
 

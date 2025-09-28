@@ -207,7 +207,7 @@ class mapplot:
         elif (self.method == 'hatches'):
             defaults = {'size': 0.3, 'color': 'black', 'marker': '.', 'interval': 3}
         elif (self.method == 'vector'):
-            defaults = {'angles': 'xy', 'scale_units': 'xy', 'color': 'black', 'width': 0.003, 'headlength': 2, 'headwidth': 2, 'color': 'black', 'regrid_shape': 30,}
+            defaults = {'angles': 'xy', 'scale_units': 'xy', 'width': 0.003, 'headlength': 2, 'headwidth': 2, 'color': 'black', 'regrid_shape': 30,}
 
         args = defaults.copy()
         if (self.cmap is not None):
@@ -546,7 +546,7 @@ class mapplot:
         elif (angle_to_lmax < angle_to_edge):
             valid = True         # OK
         elif ((self.edge_longitude - lmin) % 360 < 1.E-5):
-            valid = True
+            valid = True         # OK
         else:
             valid = False        # NG
 
