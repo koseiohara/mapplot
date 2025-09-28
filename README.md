@@ -219,6 +219,7 @@ Display a graph based on the settings provided to `gxout()`.
 #### `data`
 2- or 3-dimensional ndarray to be plotted.
 Size of the first and second (if 3-dimensional, second and third) dimension must be equal to `lon` and `lat` provided to [mapplot](#mapplot).
+If `method="hatches"`, `data` must be a bool type array.
 
 #### `y`
 Optional  
