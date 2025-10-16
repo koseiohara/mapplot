@@ -1,5 +1,6 @@
 import warnings
 import numpy             as np
+import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import cartopy.crs       as ccrs
@@ -52,7 +53,7 @@ class mapplot:
 
         self.method = 'contour'         # Default plot method as contour
 
-        self.__cmap_default   = 'bwr'   # Default color map as blue->white->red
+        self.__cmap_default   = 'bwwr'   # Default color map as blue->white->red
         self.__colors_default = None    # Default colors None
         self.cmap   = self.__cmap_default
         self.colors = self.__colors_default
@@ -148,9 +149,20 @@ class mapplot:
                                            xformatter =LongitudeFormatter(),
                                            yformatter =LatitudeFormatter() ,
                                           )
+                                           #x_inline   =True                ,
+                                           #y_inline   =True                ,
+        if (x is not None):
+            x_cp = x.astype(np.float64)
+            x_cp = x_cp % 360.
+            x_cp = np.unique(x_cp)
+            x_cp[x_cp>180.] = x_cp[x_cp>180.] - 360.
+        if (y is not None):
+            y_cp = y.astype(np.float64)
+            #y_cp[np.abs(y_cp-90) < 1.E-4] =  89.9
+            #y_cp[np.abs(y_cp+90) < 1.E-4] = -89.9
         # Specify the locations of ticks
-        self.gridlines.xlocator = self.__set_ticks(x)
-        self.gridlines.ylocator = self.__set_ticks(y)
+        self.gridlines.xlocator = self.__set_ticks(x_cp)
+        self.gridlines.ylocator = self.__set_ticks(y_cp)
 
         # Tick format
         self.gridlines.xlabel_style = {'size' : fontsize ,
@@ -210,17 +222,30 @@ class mapplot:
             defaults = {'angles': 'xy', 'scale_units': 'xy', 'width': 0.003, 'headlength': 2, 'headwidth': 2, 'color': 'black', 'regrid_shape': 30,}
 
         args = defaults.copy()
-        if (self.cmap is not None):
-            # if cmap and colors are not specified to this function
-            if (('cmap' not in kwargs) and ('colors' not in kwargs)):
-                args['cmap'] = self.cmap
+        #if (self.cmap is not None):
+        #    # if cmap and colors are not specified to this function
+        #    if (('cmap' not in kwargs) and ('colors' not in kwargs)):
+        #        args['cmap'] = self.cmap
 
-        if (self.colors is not None):
-            # if cmap and colors are not specified to this function
-            if (('cmap' not in kwargs) and ('colors' not in kwargs)):
-                args['colors'] = self.colors
+        #if (self.colors is not None):
+        #    # if cmap and colors are not specified to this function
+        #    if (('cmap' not in kwargs) and ('colors' not in kwargs)):
+        #        args['colors'] = self.colors
 
         args.update(kwargs)
+        if (('cmap' not in kwargs) and ('colors' not in kwargs)):
+            if ('levels' in kwargs):
+                args['cmap'] = self.__set_bwwr(kwargs['levels'])
+            else:
+                args['cmap'] = self.cmap
+        elif ('cmap' in args):
+            if (args['cmap'] == 'bwwr' or args['cmap'] == 'wr'):
+                if ('levels' not in kwargs):
+                    raise TypeError('display() needs argument "levels" for cmap="bwwr"')
+                if (args['cmap'] == 'bwwr'):
+                    args['cmap'] = self.__set_bwwr(kwargs['levels'])
+                elif (args['cmap'] == 'wr'):
+                    args['cmap'] = self.__set_wr(kwargs['levels'])
 
         args['transform'] = self.__crs
         if ('transform' in kwargs):
@@ -285,6 +310,7 @@ class mapplot:
         # Delete 'interval', 'size', 'colors' and 'color'
         args.pop('interval')
         args.pop('size'  , None)
+        args.pop('cmap'  , None)
         args.pop('colors', None)
         args.pop('color' , None)
         self.hatch = self.ax.scatter(work_lon,
@@ -634,5 +660,44 @@ class mapplot:
         err_fix = 1.E-12
         digit   = np.floor(np.log10(value) + err_fix)
         return int(digit)
+
+
+    def __set_bwwr(self, levels):
+        vmin = levels[0]
+        vmax = levels[-1]
+        center = (vmax + vmin) * 0.5
+        levels_shft = levels[:] - center
+        idx = np.where((levels_shft[:-1] <= 0) & (levels_shft[1:] > 0))[0][0]
+        z1  = levels[idx-1]
+        z2  = levels[idx+1]
+
+        p1 = (z1 - vmin) / (vmax - vmin)
+        p2 = (z2 - vmin) / (vmax - vmin)
+
+        return mcolors.LinearSegmentedColormap.from_list('bwwr',
+                                                         [
+                                                            (0.00, "#0000FF"),
+                                                            (p1  , "#FFFFFF"),
+                                                            (p2  , "#FFFFFF"),
+                                                            (1.00, "#FF0000"),
+                                                         ]
+                                                        )
+
+
+    def __set_wr(self, levels):
+        vmin = levels[0]
+        vmax = levels[-1]
+        idx  = 0
+        z    = levels[idx+1]
+
+        p = (z - vmin) / (vmax - vmin)
+
+        return mcolors.LinearSegmentedColormap.from_list('wr',
+                                                         [
+                                                            (0.00, "#FFFFFF"),
+                                                            (p   , "#FFFFFF"),
+                                                            (1.00, "#FF0000"),
+                                                         ]
+                                                        )
 
 
