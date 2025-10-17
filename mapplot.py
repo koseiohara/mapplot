@@ -442,9 +442,9 @@ class mapplot:
         if (coord == 'latlon' or coord == 'll'):
             args['transform'] = self.__crs
         elif (coord == 'ax'):
-            args['transform'] = ax.transAxes
+            args['transform'] = self.ax.transAxes
         elif (coord == 'fig'):
-            args['transform'] = ax.transFigure
+            args['transform'] = self.ax.transFigure
         else:
             raise ValueError(f'Unsupported options : {coord}. "latlon", "ax", and "fig" are acceptable.')
 
